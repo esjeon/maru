@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Single Peer Class for WebRTC without bind</title>
+</head>
+
+<body>
+  <h1>WebRTC Peer Example new</h1>
+  <p>Status: <span id="status">Initializing...</span></p>
+  <script>
+    class Peer {
+      constructor(name, initiator = false) {
+        this.name = name;
+        this.initiator = initiator;
+        this.connection = new RTCPeerConnection();
+
+        // Attach ICE candidate event handler using an arrow function
+        this.connection.addEventListener('icecandidate', (event) => this.handleIceCandidate(event));
+
+        if (this.initiator) {
+          // Initiator creates a data channel and attaches its event handlers
+          this.dataChannel = this.connection.createDataChannel("myDataChannel");
+          this.dataChannel.addEventListener('open', (event) => this.handleChannelOpen(event));
+          this.dataChannel.addEventListener('message', (event) => this.handleChannelMessage(event));
+        } else {
+          // Non-initiator listens for incoming data channel events
+          this.connection.addEventListener('datachannel', (event) => this.handleDataChannelEvent(event));
+        }
+      }
+
+      // ICE candidate event handler
+      handleIceCandidate(event) {
+        if (event.candidate && this.onIceCandidate) {
+          this.onIceCandidate(event.candidate);
+          console.log(`${this.name} generated ICE candidate`);
+        }
+      }
+
+      // Handler for incoming data channel event (for non-initiators)
+      handleDataChannelEvent(event) {
+        this.dataChannel = event.channel;
+        this.dataChannel.addEventListener('open', (event) => this.handleChannelOpen(event));
+        this.dataChannel.addEventListener('message', (event) => this.handleChannelMessage(event));
+        console.log(`${this.name} received data channel`);
+      }
+
+      // Data channel open event handler
+      handleChannelOpen(event) {
+        document.getElementById('status').textContent = `Data channel open on ${this.name}`;
+        console.log(`${this.name} data channel is open`);
+        // For the initiator, send a greeting once the channel is open
+        if (this.initiator) {
+          this.dataChannel.send(`Hello from ${this.name}`);
+        }
+      }
+
+      // Data channel message event handler
+      handleChannelMessage(event) {
+        console.log(`${this.name} received: ${event.data}`);
+      }
+
+      async createOffer() {
+        const offer = await this.connection.createOffer();
+        await this.connection.setLocalDescription(offer);
+        console.log(`${this.name} created offer`);
+        return offer;
+      }
+
+      async createAnswer() {
+        const answer = await this.connection.createAnswer();
+        await this.connection.setLocalDescription(answer);
+        console.log(`${this.name} created answer`);
+        return answer;
+      }
+
+      async setRemoteDescription(desc) {
+        await this.connection.setRemoteDescription(desc);
+        console.log(`${this.name} set remote description`);
+      }
+
+      async addIceCandidate(candidate) {
+        await this.connection.addIceCandidate(candidate);
+        console.log(`${this.name} added ICE candidate`);
+      }
+    }
+
+    // Example negotiation function using two peers
+    async function negotiate() {
+      try {
+        // Create two peers: one as initiator, one as receiver
+        const peerA = new Peer("PeerA", true);
+        const peerB = new Peer("PeerB", false);
+
+        // Exchange ICE candidates between peers
+        peerA.onIceCandidate = candidate => peerB.addIceCandidate(candidate);
+        peerB.onIceCandidate = candidate => peerA.addIceCandidate(candidate);
+
+        // Negotiation: PeerA creates offer, PeerB receives it and creates answer
+        const offer = await peerA.createOffer();
+        await peerB.setRemoteDescription(peerA.connection.localDescription);
+        const answer = await peerB.createAnswer();
+        await peerA.setRemoteDescription(peerB.connection.localDescription);
+
+        console.log("Negotiation complete");
+      } catch (error) {
+        console.error("Negotiation error:", error);
+      }
+    }
+
+    negotiate();
+  </script>
+</body>
+
+</html>

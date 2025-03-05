@@ -1,0 +1,22 @@
+{
+  "name": "prototype",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon"
+  },
+  "author": "Eon S. Jeon <esjeon@hyunmu.am>",
+  "license": "MIT",
+  "description": "",
+  "dependencies": {
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.0",
+    "nodemon": "^3.1.9",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

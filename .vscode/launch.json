@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Backend",
+      "type": "node",
+      "request": "launch",
+      "restart": true,
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/nodemon",
+      "args": [
+        "--inspect",
+        "${workspaceFolder}/backend/main.ts"
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "internalConsoleOptions": "openOnFirstSessionStart",
+    }
+  ]
+}
