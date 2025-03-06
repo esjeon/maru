@@ -88,25 +88,23 @@
 
     // Example negotiation function using two peers
     async function negotiate() {
-      try {
-        // Create two peers: one as initiator, one as receiver
-        const peerA = new Peer("PeerA", true);
-        const peerB = new Peer("PeerB", false);
+      // Connect to the signaling server
+      const socket = new WebSocket(window.location.href);
+      const peer = new Peer("Peer", true);
 
-        // Exchange ICE candidates between peers
-        peerA.onIceCandidate = candidate => peerB.addIceCandidate(candidate);
-        peerB.onIceCandidate = candidate => peerA.addIceCandidate(candidate);
-
-        // Negotiation: PeerA creates offer, PeerB receives it and creates answer
-        const offer = await peerA.createOffer();
-        await peerB.setRemoteDescription(peerA.connection.localDescription);
-        const answer = await peerB.createAnswer();
-        await peerA.setRemoteDescription(peerB.connection.localDescription);
-
-        console.log("Negotiation complete");
-      } catch (error) {
-        console.error("Negotiation error:", error);
+      // report ICE candidates to the signaling server.
+      peer.onIceCandidate = candidate => {
+        socket.send(JSON.stringify({
+          key: "secret1",
+          iceCandidate: candidate,
+        }));
       }
+
+      // Negotiation: PeerA creates offer, PeerB receives it and creates answer
+      //const offer = await peer.createOffer();
+      //await peer.setRemoteDescription(description);
+
+      console.log("Negotiation complete");
     }
 
     negotiate();
