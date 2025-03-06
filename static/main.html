@@ -89,7 +89,8 @@
     // Example negotiation function using two peers
     async function negotiate() {
       // Connect to the signaling server
-      const socket = new WebSocket(window.location.href);
+      window.location.origin
+      const socket = new WebSocket(window.location.origin + "/signaling");
       const peer = new Peer("Peer", true);
 
       // report ICE candidates to the signaling server.

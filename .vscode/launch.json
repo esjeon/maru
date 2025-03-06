@@ -9,7 +9,7 @@
       "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/nodemon",
       "args": [
         "--inspect",
-        "${workspaceFolder}/backend/main.ts"
+        "${workspaceFolder}/backend/index.ts"
       ],
       "env": {
         "NODE_ENV": "development"

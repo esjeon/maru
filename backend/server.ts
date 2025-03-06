@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import { WebSocket, WebSocketServer } from 'ws';
 
 const DEFAULT_HTTP_PORT = 3000;
-const MAIN_HTML_PATH = '../static/main.html'
+const MAIN_HTML_PATH = '../../static/main.html'
 
 class WSSession {
   public static generateId(): string {
@@ -16,7 +16,7 @@ class WSSession {
   }
 
   public id: string;
-  public iceCandidates: RTCIceCandidate[];
+  public iceCandidates: any[];
 
   constructor(
     public sock: WebSocket,
@@ -26,7 +26,7 @@ class WSSession {
   }
 }
 
-export class MaruServer {
+export class Server {
   public http: http.Server;
   public ws: WebSocketServer;
 
@@ -91,6 +91,12 @@ export class MaruServer {
   
   private onWSConnect(sock: WebSocket, req: http.IncomingMessage): void {
     const self = this;
+    
+    if (req.url !== '/signaling') {
+      const error = new Error(`invalid endpoint: ${req.url}`);
+      sock.send(JSON.stringify({ error }));
+      return sock.close();
+    }
 
     const session = new WSSession(sock);
     this.sessions.set(session.id, session);
