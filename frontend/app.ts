@@ -1,4 +1,3 @@
-
 /*
  * Structures
  *
@@ -7,7 +6,6 @@
 interface SystemAudioField {
   systemAudio: "include" | "exclude";
 }
-
 
 /*
  * Constants
@@ -24,7 +22,7 @@ const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
     displaySurface: ["browser", "window"],
   },
   audio: true,
-  systemAudio: "include"
+  systemAudio: "include",
 };
 
 /*
@@ -40,8 +38,9 @@ interface ChannelMessage {
 
 function isChannelMessage(obj: any): obj is ChannelMessage {
   return (
-    (obj.type && typeof obj.type === 'string') &&
-    (obj.target === null || typeof obj.target === 'string')
+    obj.type &&
+    typeof obj.type === "string" &&
+    (obj.target === null || typeof obj.target === "string")
   );
 }
 
@@ -51,26 +50,28 @@ class ChannelClient {
   public peerIds: string[];
 
   constructor() {
-    const ws = new WebSocket(window.location.origin + '/socket');
+    const ws = new WebSocket(window.location.origin + "/socket");
     this.ws = ws;
     this.id = null;
     this.peerIds = [];
 
-    ws.addEventListener('open', (ev) => {
-      this.ws.send(JSON.stringify({
-        type: 'hello',
-        target: null,
-      }))
+    ws.addEventListener("open", (ev) => {
+      this.ws.send(
+        JSON.stringify({
+          type: "hello",
+          target: null,
+        }),
+      );
     });
 
-    ws.addEventListener('message', (ev) => {
+    ws.addEventListener("message", (ev) => {
       const msg = JSON.parse(ev.data);
       if (!isChannelMessage(msg)) {
-        console.error('got invalid message', msg);
+        console.error("got invalid message", msg);
         return ws.close();
       }
 
-      if (msg.type === 'setID') {
+      if (msg.type === "setID") {
         console.assert(msg.target !== null);
         this.id = msg.target as string;
         return;
@@ -82,7 +83,7 @@ class ChannelClient {
         return;
       }
 
-      if (msg.type === 'setPeers') {
+      if (msg.type === "setPeers") {
         this.peerIds = msg.data;
       }
     });
@@ -99,20 +100,21 @@ class App {
     this.channel = new ChannelClient();
 
     this.videos = new Set();
-    this.videoList = document.createElement('ul');
+    this.videoList = document.createElement("ul");
   }
 
   public async addStream(): Promise<void> {
-    const captureStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
+    const captureStream =
+      await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
 
     // Create <video> and put the stream.
-    const video = document.createElement('video')!;
+    const video = document.createElement("video")!;
     video.srcObject = captureStream;
     video.onloadedmetadata = () => video.play();
     this.videos.add(video);
 
     // Add the <video> to <ul>
-    const listItem = document.createElement('li');
+    const listItem = document.createElement("li");
     listItem.append(video);
     this.videoList.append(listItem);
 
@@ -126,14 +128,13 @@ class App {
   }
 }
 
-window.addEventListener('load', () => {
+window.addEventListener("load", () => {
   const app = new App();
   console.log(app);
 
-  document.querySelector('section#videos')!
-    .append(app.videoList);
+  document.querySelector("section#videos")!.append(app.videoList);
 
   document
-    .querySelector('#videos-add')!
-    .addEventListener('click', () => app.addStream());
+    .querySelector("#videos-add")!
+    .addEventListener("click", () => app.addStream());
 });
