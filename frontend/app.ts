@@ -32,15 +32,76 @@ const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
  *
  */
 
+interface ChannelMessage {
+  type: string;
+  target: string | null;
+  data: any;
+}
+
+function isChannelMessage(obj: any): obj is ChannelMessage {
+  return (
+    (obj.type && typeof obj.type === 'string') &&
+    (obj.target === null || typeof obj.target === 'string')
+  );
+}
+
+class ChannelClient {
+  public ws: WebSocket;
+  public id: string | null;
+  public peerIds: string[];
+
+  constructor() {
+    const ws = new WebSocket(window.location.origin + '/socket');
+    this.ws = ws;
+    this.id = null;
+    this.peerIds = [];
+
+    ws.addEventListener('open', (ev) => {
+      this.ws.send(JSON.stringify({
+        type: 'hello',
+        target: null,
+      }))
+    });
+
+    ws.addEventListener('message', (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (!isChannelMessage(msg)) {
+        console.error('got invalid message', msg);
+        return ws.close();
+      }
+
+      if (msg.type === 'setID') {
+        console.assert(msg.target !== null);
+        this.id = msg.target as string;
+        return;
+      }
+
+      // ignore message if ID is not yet allocated, or
+      // the message is not for me.
+      if (this.id === null || msg.target !== this.id) {
+        return;
+      }
+
+      if (msg.type === 'setPeers') {
+        this.peerIds = msg.data;
+      }
+    });
+  }
+}
+
 class App {
+  public channel: ChannelClient;
+
   public videos: Set<HTMLVideoElement>;
   public videoList: HTMLUListElement;
 
   constructor() {
+    this.channel = new ChannelClient();
+
     this.videos = new Set();
     this.videoList = document.createElement('ul');
   }
-  
+
   public async addStream(): Promise<void> {
     const captureStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
 
@@ -67,6 +128,7 @@ class App {
 
 window.addEventListener('load', () => {
   const app = new App();
+  console.log(app);
 
   document.querySelector('section#videos')!
     .append(app.videoList);

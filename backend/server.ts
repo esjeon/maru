@@ -1,131 +1,118 @@
-import * as crypto from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import * as http from 'node:http';
-import { AddressInfo, ListenOptions } from 'node:net';
+import {
+  IncomingMessage as HttpReq,
+  Server as HttpServer,
+  ServerResponse as HttpResp,
+} from 'node:http';
 import * as path from 'node:path';
 import { WebSocket, WebSocketServer } from 'ws';
 
-const DEFAULT_HTTP_PORT = 3000;
-const MAIN_HTML_PATH = '../../static/main.html'
+const MAIN_HTML_PATH = '../static/main.html'
 
-class WSSession {
-  public static generateId(): string {
-    const timestamp = Date.now().toString(16);
-    const randomBytes = crypto.randomBytes(8).toString('hex');
-    return `${timestamp}-${randomBytes}`;
+function generateRandomID(): string {
+  const timestamp = Date.now().toString(36);
+  const randomPart = Math.random().toString(36).substring(2, 8);
+  return `${timestamp}-${randomPart}`
+}
+
+async function handleMainRequest(req: HttpReq, resp: HttpResp): Promise<void> {
+  if (req.method === 'GET') {
+    const html = await readFile(path.join(import.meta.dirname, MAIN_HTML_PATH));
+    resp.writeHead(200, { 'Content-Type': 'text/html' }).end(html);
+  } else {
+    resp.writeHead(405, { 'Content-Type': 'text/plain' });
+    resp.end('Method Not Allowed');
+  }
+}
+
+interface ChannelMessage {
+  type: string;
+  target: string | null;
+  data: any;
+}
+
+function isChannelMessage(obj: any): obj is ChannelMessage {
+  return (
+    (obj.type && typeof obj.type === 'string') &&
+    (obj.target === null || typeof obj.target === 'string')
+  );
+}
+
+class ChannelServer {
+  public wsServer: WebSocketServer;
+  public clients: Map<string, WebSocket>;
+
+  constructor(server: Server) {
+    this.wsServer = new WebSocketServer({ server: server.httpServer });
+    this.wsServer.addListener('connection', this.onClientConnect);
+
+    this.clients = new Map();
   }
 
-  public id: string;
-  public iceCandidates: any[];
+  private onClientConnect = (ws: WebSocket, req: HttpReq): void => {
+    const clientId = generateRandomID();
+    this.clients.set(clientId, ws);
+    console.log(clientId);
 
-  constructor(
-    public sock: WebSocket,
-  ) {
-    this.id = WSSession.generateId();
-    this.iceCandidates = []
+    ws.on('message', (rawData, isBinary) => {
+      const msg = JSON.parse(rawData.toString());
+      if (!isChannelMessage(msg))
+        return ws.close();
+
+      const { type, target } = msg;
+      if (type === 'hello') {
+        this.sendTo(clientId, {
+          type: 'setID',
+          target: clientId,
+          data: null,
+        });
+        this.sendTo(clientId, {
+          type: 'setPeers',
+          target: clientId,
+          data: Array.from(this.clients.keys()),
+        });
+      } else {
+        if (target)
+          this.sendTo(target, msg);
+        else
+          console.warn(`missing message target`);
+      }
+    });
+
+    ws.on('close', () => {
+      this.clients.delete(clientId);
+    });
+  }
+
+  private sendTo(clientId: string, msg: ChannelMessage): void {
+    const client = this.clients.get(clientId);
+    if (!client)
+      return console.warn(`target client not found: ${clientId}`);
+    if (client.readyState !== WebSocket.OPEN)
+      return console.warn(`target client is not ready: ${clientId}`);
+
+    client.send(JSON.stringify(msg));
   }
 }
 
 export class Server {
-  public http: http.Server;
-  public ws: WebSocketServer;
-
-  public validKeys: Set<string>;
-  public sessions: Map<string, WSSession>;
+  public httpServer: HttpServer;
+  public channelServer: ChannelServer;
 
   constructor() {
-    const self = this;
-
-    this.http = new http.Server(async (req, resp) => {
-      try {
-        await self.onHttpRequest(req, resp);
-      } catch (e) {
-        console.error(e);
-        resp.writeHead(500, { 'Content-Type': 'text/plain' });
-        resp.end('Interal Server Error');
-      }
-    });
-
-    this.ws = new WebSocketServer({ server: this.http });
-    this.ws.addListener('connection', (sock, req) => self.onWSConnect(sock, req));
-
-    this.validKeys = new Set(['secret1', 'secret2', 'secret3']);
-    this.sessions = new Map();
+    this.httpServer = new HttpServer(this.onRequest.bind(this));
+    this.channelServer = new ChannelServer(this);
   }
 
-  public async listen(opts?: ListenOptions): Promise<void> {
-    if (!opts) opts = {};
-    if (!opts.port) opts.port = DEFAULT_HTTP_PORT;
-    if (!opts.host) opts.host = '127.0.0.1';
-
-    await new Promise((resolve, reject) => {
-      try {
-        this.http.listen(opts, () => resolve(undefined))
-      } catch (e) {
-        reject(e);
-      }
-    });
-    const addrInfo = this.http.address() as AddressInfo;
-    console.log(`Server running at http://${addrInfo.address}:${addrInfo.port}/`);
-  }
-
-  private async onHttpRequest(req: http.IncomingMessage, resp: http.ServerResponse): Promise<void> {
-    if (req.url === '/') {
-      if (req.method === 'GET') {
-        const html = await readFile(path.join(import.meta.dirname, MAIN_HTML_PATH));
-        resp.writeHead(200, { 'Content-Type': 'text/html' });
-        resp.end(html);
-      } else {
-        resp.writeHead(405, { 'Content-Type': 'text/plain' });
-        resp.end('Method Not Allowed');
-      }
-    } else {
+  private async onRequest(req: HttpReq, resp: HttpResp): Promise<void> {
+    try {
+      if (req.url === '/') return handleMainRequest(req, resp);
       resp.writeHead(404, { 'Content-Type': 'text/plain' });
       resp.end('Not Found');
+    } catch (e) {
+      console.error(e);
+      resp.writeHead(500, { 'Content-Type': 'text/plain' });
+      resp.end('Interal Server Error');
     }
-  }
-
-  private verifyClientKey(key: string): boolean {
-    return this.validKeys.has(key);
-  }
-  
-  private onWSConnect(sock: WebSocket, req: http.IncomingMessage): void {
-    const self = this;
-    
-    if (req.url !== '/signaling') {
-      const error = new Error(`invalid endpoint: ${req.url}`);
-      sock.send(JSON.stringify({ error }));
-      return sock.close();
-    }
-
-    const session = new WSSession(sock);
-    this.sessions.set(session.id, session);
-
-    sock.addEventListener('message', (ev) => self.onWSMessage(session, ev));
-    sock.addEventListener('close', (ev) => self.onWSDisconnect(session, ev));
-    sock.addEventListener('error', (ev) => console.error("WS: error: %", ev));
-
-    console.info('WS: sessoin opened: session=%s', session.id)
-  }
-  
-  private onWSMessage(session: WSSession, ev: WebSocket.MessageEvent): void {
-    try {
-      const data = JSON.parse(ev.data as string);
-      
-      if (!data.key || !this.verifyClientKey(data.key))
-        throw new Error('invalid key');
-
-      if (data.iceCandidate)
-        session.iceCandidates.push(data.iceCandidate);
-    } catch(error) {
-      console.error('WS: error in session: session=% error=%s', session.id, error);
-      session.sock.send(JSON.stringify({ error }));
-      session.sock.close();
-    }
-  }
-
-  private onWSDisconnect(session: WSSession, ev: WebSocket.CloseEvent): void {
-    console.info('WS: sessoin closed: session=%s reason=%s code=%s', session.id, ev.reason, ev.code);
-    this.sessions.delete(session.id);
   }
 }
