@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev:backend": "nodemon",
-    "dev:frontend": "vite --host"
+    "dev:frontend": "vite --host",
+    "build:backend": "tsc -p backend/",
+    "build:frontend": "vite build"
   },
   "author": "Eon S. Jeon <esjeon@hyunmu.am>",
   "license": "MIT",

@@ -12,5 +12,6 @@
     //{ "path": "./shared" },
     { "path": "./backend" },
     { "path": "./frontend" },
+    { "path": "./shared" },
   ]
 }
