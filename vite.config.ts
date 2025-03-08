@@ -1,14 +1,14 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  root: './frontend', // Set the root directory to your project's root (default is '.')
+  root: './frontend',
   server: {
     port: 3001,
     proxy: {
-      '/signaling': 'ws://localhost:3000/signaling',
+      '/socket': 'ws://localhost:3000/socket',
     },
   },
   build: {
-    outDir: './dist/frontend', // Specify the output directory for production builds
+    outDir: './dist/frontend',
   },
 });
