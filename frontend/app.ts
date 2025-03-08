@@ -1,3 +1,5 @@
+import { JSONWebSocket } from "./JSONWebSocket";
+
 /*
  * Structures
  *
@@ -45,46 +47,40 @@ function isChannelMessage(obj: any): obj is ChannelMessage {
 }
 
 class ChannelClient {
-  public ws: WebSocket;
+  public ws: JSONWebSocket;
   public id: string | null;
   public peerIds: string[];
 
   constructor() {
-    const ws = new WebSocket(window.location.origin + "/socket");
+    const ws = new JSONWebSocket(window.location.origin + "/socket");
     this.ws = ws;
     this.id = null;
     this.peerIds = [];
 
     ws.addEventListener("open", (ev) => {
-      this.ws.send(
-        JSON.stringify({
-          type: "hello",
-          target: null,
-        }),
-      );
+      this.ws.sendJSON({ type: "hello", target: null });
     });
 
-    ws.addEventListener("message", (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (!isChannelMessage(msg)) {
-        console.error("got invalid message", msg);
-        return ws.close();
-      }
+    ws.addEventListener("jsonMessage", (ev) => {
+      const msg = ev.object as ChannelMessage;
+      if (!isChannelMessage(msg)) return console.warn(`invalid message`, msg);
 
-      if (msg.type === "setID") {
-        console.assert(msg.target !== null);
-        this.id = msg.target as string;
+      // if my ID is not set, accept only `setID` message.
+      if (this.id === null) {
+        if (msg.type === "setID") {
+          console.assert(msg.target !== null);
+          this.id = msg.target as string;
+        }
         return;
       }
 
-      // ignore message if ID is not yet allocated, or
-      // the message is not for me.
-      if (this.id === null || msg.target !== this.id) {
-        return;
-      }
+      // ignore message not for me.
+      if (msg.target !== this.id) return;
 
       if (msg.type === "setPeers") {
         this.peerIds = msg.data;
+      } else {
+        console.warn(`unknown message type: ${msg.type}`, msg);
       }
     });
   }
