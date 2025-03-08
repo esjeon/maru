@@ -7,14 +7,11 @@
       "request": "launch",
       "restart": true,
       "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/nodemon",
-      "args": [
-        "--inspect",
-        "${workspaceFolder}/backend/index.ts"
-      ],
+      "args": ["--inspect", "${workspaceFolder}/backend/index.ts"],
       "env": {
         "NODE_ENV": "development"
       },
-      "internalConsoleOptions": "openOnFirstSessionStart",
+      "internalConsoleOptions": "openOnFirstSessionStart"
     },
     {
       "name": "Debug Frontend",

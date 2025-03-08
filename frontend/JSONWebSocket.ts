@@ -47,7 +47,7 @@ export class JSONWebSocket extends WebSocket {
       this.dispatchEvent(new JSONMessageEvent(ev, object));
     });
   }
-  
+
   public sendJSON(object: any) {
     this.send(JSON.stringify(object));
   }

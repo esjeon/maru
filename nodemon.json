@@ -1,5 +1,5 @@
 {
-  "watch": [ "./backend/" ],
+  "watch": ["./backend/"],
   "ext": "ts",
   "exec": "tsx --tsconfig backend/tsconfig.json backend/index.ts"
 }

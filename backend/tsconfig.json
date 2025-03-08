@@ -4,12 +4,8 @@
     "composite": true,
     "module": "Node16",
     "esModuleInterop": true,
-    "lib": [
-      "ES2024"
-    ],
-    "outDir": "../dist/backend",
+    "lib": ["ES2024"],
+    "outDir": "../dist/backend"
   },
-  "include": [
-    "./**/*.ts",
-  ],
+  "include": ["./**/*.ts"]
 }
