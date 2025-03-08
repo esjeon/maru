@@ -15,6 +15,20 @@
         "NODE_ENV": "development"
       },
       "internalConsoleOptions": "openOnFirstSessionStart",
+    },
+    {
+      "name": "Debug Frontend",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3001",
+      "webRoot": "${workspaceFolder}/frontend/",
+      "runtimeExecutable": "/var/lib/flatpak/exports/bin/com.google.Chrome"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full Stack Debug",
+      "configurations": ["Debug Backend", "Debug Frontend"]
     }
   ]
 }
