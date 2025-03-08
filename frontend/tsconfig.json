@@ -7,6 +7,9 @@
       "DOM",
       "ES2024"
     ],
-    "outDir": "./dist",
+    "outDir": "../dist/frontend",
   },
+  "include": [
+    "./**/*.ts"
+  ]
 }
