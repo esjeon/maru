@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import { ICustomWebSocket } from "../shared/GenericChannel";
+import { ICustomWebSocket } from "../shared/channel";
 
 /** Adapts WebSocket from `ws` packages to internal `GenericChannel` class
  *

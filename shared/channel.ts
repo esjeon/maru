@@ -1,3 +1,5 @@
+export * as messages from "./channel_messages";
+
 interface Typed {
   type: string;
 }

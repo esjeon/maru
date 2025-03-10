@@ -3,12 +3,7 @@ import * as http from "node:http";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
 
-import {
-  ClientMessage,
-  isClientMessage,
-  ServerMessage,
-} from "../shared/channel_message";
-import { GenericChannel } from "../shared/GenericChannel";
+import { GenericChannel, messages as M } from "../shared/channel";
 import { NodeWebSocketAdapter } from "./NodeWebSocketAdaptor";
 
 const MAIN_HTML_PATH = "../static/main.html";
@@ -19,9 +14,9 @@ function generateRandomID(): string {
   return `${timestamp}-${randomPart}`;
 }
 
-class ServerChannel extends GenericChannel<ClientMessage, ServerMessage> {
+class ServerChannel extends GenericChannel<M.ClientMessage, M.ServerMessage> {
   constructor(ws: WebSocket, id?: string) {
-    super(new NodeWebSocketAdapter(ws), isClientMessage, id);
+    super(new NodeWebSocketAdapter(ws), M.isClientMessage, id);
   }
 }
 
@@ -62,7 +57,7 @@ class ChannelServer {
     });
   }
 
-  private broadcast(msg: ServerMessage, exceptId?: string): void {
+  private broadcast(msg: M.ServerMessage, exceptId?: string): void {
     for (const [id, conn] of this.connections) {
       if (id == exceptId) continue;
       conn.sendMessage(msg);

@@ -1,9 +1,4 @@
-import {
-  ClientMessage,
-  isServerMessage,
-  ServerMessage,
-} from "../shared/channel_message";
-import { GenericChannel } from "../shared/GenericChannel";
+import { GenericChannel, messages as M } from "../shared/channel";
 
 interface SystemAudioField {
   systemAudio: "include" | "exclude";
@@ -18,14 +13,14 @@ const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
 };
 
 export class ClientChannel extends GenericChannel<
-  ServerMessage,
-  ClientMessage
+  M.ServerMessage,
+  M.ClientMessage
 > {
   constructor(
     socket: WebSocket,
     public id?: string,
   ) {
-    super(socket, isServerMessage, id);
+    super(socket, M.isServerMessage, id);
   }
 }
 
