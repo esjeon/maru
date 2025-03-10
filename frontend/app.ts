@@ -1,4 +1,4 @@
-import { ChannelClient, SetPeersMessage } from "./ChannelClient";
+import { ChannelClient } from "./ChannelClient";
 
 /*
  * Structures
