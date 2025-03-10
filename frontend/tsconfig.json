@@ -6,5 +6,6 @@
     "lib": ["DOM", "ES2024"],
     "outDir": "../dist/frontend"
   },
-  "include": ["./**/*.ts"]
+  "include": ["./**/*.ts"],
+  "references": [{ "path": "../shared" }]
 }
