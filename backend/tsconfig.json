@@ -7,5 +7,6 @@
     "lib": ["ES2024"],
     "outDir": "../dist/backend"
   },
-  "include": ["./**/*.ts"]
+  "include": ["./**/*.ts"],
+  "references": [{ "path": "../shared" }]
 }

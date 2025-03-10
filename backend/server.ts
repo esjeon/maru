@@ -7,6 +7,12 @@ import {
 import * as path from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
 
+import {
+  ClientMessage,
+  isClientMessage,
+  ServerMessage,
+} from "../shared/channel_message.js";
+
 const MAIN_HTML_PATH = "../static/main.html";
 
 function generateRandomID(): string {
@@ -25,89 +31,119 @@ async function handleMainRequest(req: HttpReq, resp: HttpResp): Promise<void> {
   }
 }
 
-interface ChannelMessage {
-  type: string;
-}
-
-function isChannelMessage(obj: any): obj is ChannelMessage {
-  return obj.type && typeof obj.type === "string";
-}
-
-class ChannelServer {
-  public wsServer: WebSocketServer;
-  public clients: Map<string, WebSocket>;
-
-  constructor(server: Server) {
-    this.wsServer = new WebSocketServer({ server: server.httpServer });
-    this.wsServer.addListener("connection", this.onClientConnect);
-
-    this.clients = new Map();
+class ChannelConnection extends EventTarget {
+  constructor(
+    public socket: WebSocket,
+    public id?: string,
+  ) {
+    super();
+    this.registerWebSocketHandlers();
   }
 
-  private onClientConnect = (ws: WebSocket, req: HttpReq): void => {
-    const clientId = generateRandomID();
-    this.clients.set(clientId, ws);
-    console.info(`client connected: ${clientId}`);
+  private registerWebSocketHandlers(): void {
+    this.socket.addEventListener("open", (ev) => {
+      this.dispatchEvent(new CustomEvent("open"));
+    });
+
+    this.socket.addEventListener("error", (ev) => {
+      console.error("Channel WebSocket error", ev);
+      this.dispatchEvent(new CustomEvent("error"));
+    });
+
+    this.socket.addEventListener("close", (ev) => {
+      console.info("Channel WebSocket close", ev);
+      this.dispatchEvent(new CustomEvent("close"));
+    });
+
+    this.socket.addEventListener("message", (ev) => {
+      this.dispatchRawMessage(ev.data);
+    });
+  }
+
+  private dispatchRawMessage(raw: any): void {
+    if (typeof raw !== "string") return;
+
+    const msg = JSON.parse(raw);
+    if (!msg || !isClientMessage(msg)) throw new Error("got invalid message");
+
+    this.dispatchEvent(new CustomEvent(msg.type, { detail: msg }));
+  }
+
+  public addMessageHandler<T extends ClientMessage["type"]>(
+    type: T,
+    handler: (ev: CustomEvent<Extract<ClientMessage, { type: T }>>) => void,
+  ): void {
+    this.addEventListener(type, (ev) =>
+      handler(ev as CustomEvent<Extract<ClientMessage, { type: T }>>),
+    );
+  }
+
+  public sendMessage(object: ServerMessage): void {
+    this.socket.send(JSON.stringify(object));
+  }
+}
+
+class ChannelServer extends EventTarget {
+  public wsServer: WebSocketServer;
+  public connections: Map<string, ChannelConnection>;
+
+  constructor(server: Server) {
+    super();
+
+    this.wsServer = new WebSocketServer({ server: server.httpServer });
+    this.wsServer.addListener("connection", (ws, req) => {
+      this.onClientConnect(ws, req);
+    });
+
+    this.connections = new Map();
+  }
+
+  private onClientConnect(ws: WebSocket, req: HttpReq): void {
+    const connId = generateRandomID();
+    const conn = new ChannelConnection(ws, connId);
+    this.connections.set(connId, conn);
+    console.info(`client connected: ${connId}`);
 
     // boadcast the peer connection
-    for (const [rid, rclient] of this.clients) {
-      if (rid == clientId) continue;
-      console.log("rid");
-      rclient.send(
-        JSON.stringify({
-          type: "add-peer",
-          peer: clientId,
-        }),
+    this.broadcast(
+      {
+        type: "add-peer",
+        peer: connId,
+      },
+      connId,
+    );
+
+    conn.addMessageHandler("id", (ev) => {
+      conn.sendMessage({
+        type: "set-id",
+        id: connId,
+      });
+    });
+
+    conn.addMessageHandler("ls-peers", (ev) => {
+      conn.sendMessage({
+        type: "set-peers",
+        peers: Array.from(this.connections.keys()),
+      });
+    });
+
+    conn.addEventListener("close", () => {
+      this.connections.delete(connId);
+      this.broadcast(
+        {
+          type: "delete-peer",
+          peer: connId,
+        },
+        connId,
       );
+    });
+  }
+
+  private broadcast(msg: ServerMessage, exceptId?: string): void {
+    for (const [id, conn] of this.connections) {
+      if (id == exceptId) continue;
+      conn.sendMessage(msg);
     }
-
-    ws.on("message", (rawData) => {
-      const msg = JSON.parse(rawData.toString());
-      if (!isChannelMessage(msg)) return ws.close();
-      console.debug(`request from ${clientId}:`, msg);
-
-      const { type } = msg;
-      if (type === "id") {
-        ws.send(
-          JSON.stringify({
-            type: "set-id",
-            id: clientId,
-          }),
-        );
-      } else if (type === "ls-peers") {
-        ws.send(
-          JSON.stringify({
-            type: "set-peers",
-            peers: Array.from(this.clients.keys()),
-          }),
-        );
-      }
-    });
-
-    ws.on("close", () => {
-      this.clients.delete(clientId);
-
-      // boadcast the peer disconnection
-      for (const [rid, rclient] of this.clients) {
-        if (rid == clientId) continue;
-        console.log("rid");
-        rclient.send(
-          JSON.stringify({
-            type: "delete-peer",
-            peer: clientId,
-          }),
-        );
-      }
-    });
-  };
-
-  private sendTo(clientId: string, msg: ChannelMessage): void {
-    const client = this.clients.get(clientId);
-    if (!client) return console.warn(`target client not found: ${clientId}`);
-    if (client.readyState !== WebSocket.OPEN)
-      return console.warn(`target client is not ready: ${clientId}`);
-
-    client.send(JSON.stringify(msg));
   }
 }
 

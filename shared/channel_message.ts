@@ -34,6 +34,14 @@ export interface DeletePeerMessage {
   peer: string;
 }
 
+export function isClientMessage(obj: any): obj is ClientMessage {
+  return (
+    obj !== null &&
+    typeof obj === "object" &&
+    (obj.type === "id" || obj.type === "ls-peers")
+  );
+}
+
 export function isServerMessage(obj: any): obj is ServerMessage {
   return (
     obj !== null &&
