@@ -1,5 +1,4 @@
-import { ChannelClient } from "./ChannelClient";
-import { JSONWebSocket } from "./JSONWebSocket";
+import { ChannelClient, SetPeersMessage } from "./ChannelClient";
 
 /*
  * Structures
@@ -39,11 +38,30 @@ class App {
   public videos: Set<HTMLVideoElement>;
   public videoList: HTMLUListElement;
 
+  public peers: Set<string>;
+
   constructor() {
     this.channel = new ChannelClient();
+    this.channel.addEventListener("open", (ev) => {
+      this.channel.sendRequest({ type: "id" });
+      this.channel.sendRequest({ type: "ls-peers" });
+    });
+    this.channel.addResponseHandler("set-peers", (ev) => {
+      this.peers = new Set(ev.detail.peers);
+    });
+    this.channel.addResponseHandler("add-peer", (ev) => {
+      this.peers.add(ev.detail.peer);
+      console.log(ev, this.peers);
+    });
+    this.channel.addResponseHandler("delete-peer", (ev) => {
+      this.peers.delete(ev.detail.peer);
+      console.log(ev, this.peers);
+    });
 
     this.videos = new Set();
     this.videoList = document.createElement("ul");
+
+    this.peers = new Set();
   }
 
   public async addStream(): Promise<void> {

@@ -27,16 +27,10 @@ async function handleMainRequest(req: HttpReq, resp: HttpResp): Promise<void> {
 
 interface ChannelMessage {
   type: string;
-  target: string | null;
-  data: any;
 }
 
 function isChannelMessage(obj: any): obj is ChannelMessage {
-  return (
-    obj.type &&
-    typeof obj.type === "string" &&
-    (obj.target === null || typeof obj.target === "string")
-  );
+  return obj.type && typeof obj.type === "string";
 }
 
 class ChannelServer {
@@ -53,32 +47,57 @@ class ChannelServer {
   private onClientConnect = (ws: WebSocket, req: HttpReq): void => {
     const clientId = generateRandomID();
     this.clients.set(clientId, ws);
-    console.log(clientId);
+    console.info(`client connected: ${clientId}`);
 
-    ws.on("message", (rawData, isBinary) => {
+    // boadcast the peer connection
+    for (const [rid, rclient] of this.clients) {
+      if (rid == clientId) continue;
+      console.log("rid");
+      rclient.send(
+        JSON.stringify({
+          type: "add-peer",
+          peer: clientId,
+        }),
+      );
+    }
+
+    ws.on("message", (rawData) => {
       const msg = JSON.parse(rawData.toString());
       if (!isChannelMessage(msg)) return ws.close();
+      console.debug(`request from ${clientId}:`, msg);
 
-      const { type, target } = msg;
-      if (type === "hello") {
-        this.sendTo(clientId, {
-          type: "setID",
-          target: clientId,
-          data: null,
-        });
-        this.sendTo(clientId, {
-          type: "setPeers",
-          target: clientId,
-          data: Array.from(this.clients.keys()),
-        });
-      } else {
-        if (target) this.sendTo(target, msg);
-        else console.warn(`missing message target`);
+      const { type } = msg;
+      if (type === "id") {
+        ws.send(
+          JSON.stringify({
+            type: "set-id",
+            id: clientId,
+          }),
+        );
+      } else if (type === "ls-peers") {
+        ws.send(
+          JSON.stringify({
+            type: "set-peers",
+            peers: Array.from(this.clients.keys()),
+          }),
+        );
       }
     });
 
     ws.on("close", () => {
       this.clients.delete(clientId);
+
+      // boadcast the peer disconnection
+      for (const [rid, rclient] of this.clients) {
+        if (rid == clientId) continue;
+        console.log("rid");
+        rclient.send(
+          JSON.stringify({
+            type: "delete-peer",
+            peer: clientId,
+          }),
+        );
+      }
     });
   };
 

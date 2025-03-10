@@ -1,55 +1,111 @@
-import { JSONWebSocket } from "./JSONWebSocket";
+export type ClientMessage = IDMessage | ListPeersMessage;
 
-interface ChannelMessage {
-  type: string;
-  target: string | null;
-  data: any;
+export interface IDMessage {
+  type: "id";
 }
 
-function isChannelMessage(obj: any): obj is ChannelMessage {
+export interface ListPeersMessage {
+  type: "ls-peers";
+}
+
+export type ServerMessage =
+  | SetIDMessage
+  | SetPeersMessage
+  | AddPeerMessage
+  | DeletePeerMessage;
+
+export interface SetIDMessage {
+  type: "set-id";
+  id: string;
+}
+
+export interface SetPeersMessage {
+  type: "set-peers";
+  peers: string[];
+}
+
+export interface AddPeerMessage {
+  type: "add-peer";
+  peer: string;
+}
+
+export interface DeletePeerMessage {
+  type: "delete-peer";
+  peer: string;
+}
+
+function isChannelResponse(obj: any): obj is ServerMessage {
   return (
-    obj.type &&
-    typeof obj.type === "string" &&
-    (obj.target === null || typeof obj.target === "string")
+    obj !== null &&
+    typeof obj === "object" &&
+    ((obj.type === "set-id" && typeof obj.id === "string") ||
+      (obj.type === "set-peers" &&
+        Array.isArray(obj.peers) &&
+        obj.peers.every((peer: any) => typeof peer === "string")) ||
+      (obj.type === "add-peer" && typeof obj.peer === "string") ||
+      (obj.type === "delete-peer" && typeof obj.peer === "string"))
   );
 }
 
-export class ChannelClient {
-  public ws: JSONWebSocket;
-  public id: string | null;
-  public peerIds: string[];
+export class ChannelClient extends EventTarget {
+  public ws: WebSocket;
+  public id?: string;
 
   constructor() {
-    const ws = new JSONWebSocket(window.location.origin + "/socket");
-    this.ws = ws;
-    this.id = null;
-    this.peerIds = [];
+    super();
 
-    ws.addEventListener("open", (ev) => {
-      this.ws.sendJSON({ type: "hello", target: null });
+    this.ws = new WebSocket(window.location.origin + "/socket");
+    this.registerWebSocketHandlers();
+
+    this.addResponseHandler("set-id", (ev) => {
+      this.id = ev.detail.id;
+    });
+  }
+
+  private registerWebSocketHandlers(): void {
+    this.ws.addEventListener("open", (ev) => {
+      this.dispatchEvent(new CustomEvent("open"));
     });
 
-    ws.addEventListener("jsonMessage", (ev) => {
-      const msg = ev.object as ChannelMessage;
-      if (!isChannelMessage(msg)) return console.warn(`invalid message`, msg);
-
-      // if my ID is not set, accept only `setID` message.
-      if (this.id === null) {
-        if (msg.type === "setID") {
-          console.assert(msg.target !== null);
-          this.id = msg.target as string;
-        }
-        return;
-      }
-
-      // ignore message not for me.
-      if (msg.target !== this.id) return;
-
-      if (msg.type === "setPeers") {
-        this.peerIds = msg.data;
-      } else {
-        console.warn(`unknown message type: ${msg.type}`, msg);
-      }
+    this.ws.addEventListener("error", (ev) => {
+      console.error("Channel WebSocket error", ev);
+      this.dispatchEvent(new CustomEvent("error"));
     });
+
+    this.ws.addEventListener("close", (ev) => {
+      console.info("Channel WebSocket close", ev);
+      this.dispatchEvent(new CustomEvent("close"));
+    });
+
+    this.ws.addEventListener("message", (ev: MessageEvent) =>
+      this.dispatchRawMessage(ev.data),
+    );
+  }
+
+  private dispatchRawMessage(raw: any): void {
+    if (typeof raw !== "string") return;
+
+    const msg = JSON.parse(raw);
+    if (!msg || !isChannelResponse(msg)) throw new Error("got invalid message");
+
+    if (!this.id && msg.type !== "set-id") {
+      console.warn("ignored message", msg);
+      return;
+    }
+
+    this.dispatchEvent(new CustomEvent(msg.type, { detail: msg }));
+  }
+
+  public addResponseHandler<T extends ServerMessage["type"]>(
+    type: T,
+    handler: (ev: CustomEvent<Extract<ServerMessage, { type: T }>>) => void,
+  ): void {
+    this.addEventListener(type, (ev) =>
+      handler(ev as CustomEvent<Extract<ServerMessage, { type: T }>>),
+    );
+  }
+
+  public sendRequest(object: ClientMessage): void {
+    this.ws.send(JSON.stringify(object));
   }
 }
