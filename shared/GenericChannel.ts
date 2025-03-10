@@ -2,12 +2,17 @@ interface Typed {
   type: string;
 }
 
+// Define a unified WebSocket interface
+export interface ICustomWebSocket extends EventTarget {
+  send(data: string): void;
+}
+
 export class GenericChannel<
   TIncoming extends Typed,
   TOutgoing extends Typed,
 > extends EventTarget {
   constructor(
-    public socket: WebSocket,
+    public socket: ICustomWebSocket,
     private isValidMessage: (obj: any) => obj is TIncoming,
     public id?: string,
   ) {
@@ -20,28 +25,26 @@ export class GenericChannel<
       this.dispatchEvent(new CustomEvent("open"));
     });
 
-    this.socket.addEventListener("error", (ev) => {
+    this.socket.addEventListener("error", (ev: Event) => {
       console.error("GenericChannel WebSocket error", ev);
       this.dispatchEvent(new CustomEvent("error"));
     });
 
-    this.socket.addEventListener("close", (ev) => {
+    this.socket.addEventListener("close", (ev: Event) => {
       console.info("GenericChannel WebSocket close", ev);
       this.dispatchEvent(new CustomEvent("close"));
     });
 
-    this.socket.addEventListener("message", (ev) => {
-      this.dispatchRawMessage(ev.data);
+    // For Node adapter, our adapter will forward data in ev.detail
+    this.socket.addEventListener("message", (ev: any) => {
+      this.dispatchRawMessage(ev.detail ?? ev.data);
     });
   }
 
   private dispatchRawMessage(raw: any): void {
-    if (typeof raw !== "string") return;
-
-    const msg = JSON.parse(raw);
+    const msg = JSON.parse(raw.toString());
     if (!this.isValidMessage(msg)) throw new Error("Received invalid message");
 
-    // If you need additional logic (for example, ignoring messages until an ID is set), you can add it here.
     this.dispatchEvent(new CustomEvent(msg.type, { detail: msg }));
   }
 

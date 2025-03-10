@@ -1,5 +1,9 @@
-import { ChannelClient } from "./ChannelClient";
-
+import {
+  ClientMessage,
+  isServerMessage,
+  ServerMessage,
+} from "../shared/channel_message";
+import { GenericChannel } from "../shared/GenericChannel";
 /*
  * Structures
  *
@@ -32,8 +36,20 @@ const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
  *
  */
 
+export class ClientChannel extends GenericChannel<
+  ServerMessage,
+  ClientMessage
+> {
+  constructor(
+    socket: WebSocket,
+    public id?: string,
+  ) {
+    super(socket, isServerMessage, id);
+  }
+}
+
 class App {
-  public channel: ChannelClient;
+  public channel: ClientChannel;
 
   public videos: Set<HTMLVideoElement>;
   public videoList: HTMLUListElement;
@@ -41,21 +57,23 @@ class App {
   public peers: Set<string>;
 
   constructor() {
-    this.channel = new ChannelClient();
+    const ws = new WebSocket(window.location.origin + "/socket");
+    this.channel = new ClientChannel(ws);
+
     this.channel.addEventListener("open", (ev) => {
-      this.channel.sendRequest({ type: "id" });
-      this.channel.sendRequest({ type: "ls-peers" });
+      this.channel.sendMessage({ type: "id" });
+      this.channel.sendMessage({ type: "ls-peers" });
     });
-    this.channel.addResponseHandler("set-peers", (ev) => {
+    this.channel.addMessageHandler("set-peers", (ev) => {
       this.peers = new Set(ev.detail.peers);
     });
-    this.channel.addResponseHandler("add-peer", (ev) => {
+    this.channel.addMessageHandler("add-peer", (ev) => {
       this.peers.add(ev.detail.peer);
-      console.log(ev, this.peers);
+      console.debug("App set-peer", ev, this.peers);
     });
-    this.channel.addResponseHandler("delete-peer", (ev) => {
+    this.channel.addMessageHandler("delete-peer", (ev) => {
       this.peers.delete(ev.detail.peer);
-      console.log(ev, this.peers);
+      console.debug("Appp delete-peer", ev, this.peers);
     });
 
     this.videos = new Set();

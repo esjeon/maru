@@ -12,6 +12,8 @@ import {
   isClientMessage,
   ServerMessage,
 } from "../shared/channel_message.js";
+import { GenericChannel } from "../shared/GenericChannel.js";
+import { NodeWebSocketAdapter } from "./NodeWebSocketAdaptor.js";
 
 const MAIN_HTML_PATH = "../static/main.html";
 
@@ -31,55 +33,10 @@ async function handleMainRequest(req: HttpReq, resp: HttpResp): Promise<void> {
   }
 }
 
-class ChannelConnection extends EventTarget {
-  constructor(
-    public socket: WebSocket,
-    public id?: string,
-  ) {
-    super();
-    this.registerWebSocketHandlers();
-  }
-
-  private registerWebSocketHandlers(): void {
-    this.socket.addEventListener("open", (ev) => {
-      this.dispatchEvent(new CustomEvent("open"));
-    });
-
-    this.socket.addEventListener("error", (ev) => {
-      console.error("Channel WebSocket error", ev);
-      this.dispatchEvent(new CustomEvent("error"));
-    });
-
-    this.socket.addEventListener("close", (ev) => {
-      console.info("Channel WebSocket close", ev);
-      this.dispatchEvent(new CustomEvent("close"));
-    });
-
-    this.socket.addEventListener("message", (ev) => {
-      this.dispatchRawMessage(ev.data);
-    });
-  }
-
-  private dispatchRawMessage(raw: any): void {
-    if (typeof raw !== "string") return;
-
-    const msg = JSON.parse(raw);
-    if (!msg || !isClientMessage(msg)) throw new Error("got invalid message");
-
-    this.dispatchEvent(new CustomEvent(msg.type, { detail: msg }));
-  }
-
-  public addMessageHandler<T extends ClientMessage["type"]>(
-    type: T,
-    handler: (ev: CustomEvent<Extract<ClientMessage, { type: T }>>) => void,
-  ): void {
-    this.addEventListener(type, (ev) =>
-      handler(ev as CustomEvent<Extract<ClientMessage, { type: T }>>),
-    );
-  }
-
-  public sendMessage(object: ServerMessage): void {
-    this.socket.send(JSON.stringify(object));
+class ChannelConnection extends GenericChannel<ClientMessage, ServerMessage> {
+  constructor(ws: WebSocket, id?: string) {
+    const wsAdapter = new NodeWebSocketAdapter(ws);
+    super(wsAdapter, isClientMessage, id);
   }
 }
 
