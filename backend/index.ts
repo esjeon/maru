@@ -1,4 +1,4 @@
-import { Server } from "./server.js";
+import { Server } from "./server";
 import { AddressInfo } from "node:net";
 
 const server = new Server();

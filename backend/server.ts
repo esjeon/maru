@@ -7,9 +7,9 @@ import {
   ClientMessage,
   isClientMessage,
   ServerMessage,
-} from "../shared/channel_message.js";
-import { GenericChannel } from "../shared/GenericChannel.js";
-import { NodeWebSocketAdapter } from "./NodeWebSocketAdaptor.js";
+} from "../shared/channel_message";
+import { GenericChannel } from "../shared/GenericChannel";
+import { NodeWebSocketAdapter } from "./NodeWebSocketAdaptor";
 
 const MAIN_HTML_PATH = "../static/main.html";
 
