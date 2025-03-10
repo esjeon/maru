@@ -12,10 +12,7 @@ const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
   systemAudio: "include",
 };
 
-export class ClientChannel extends GenericChannel<
-  M.ServerMessage,
-  M.ClientMessage
-> {
+class Channel extends GenericChannel<M.ServerMessage, M.ClientMessage> {
   constructor(
     socket: WebSocket,
     public id?: string,
@@ -25,7 +22,7 @@ export class ClientChannel extends GenericChannel<
 }
 
 class App {
-  public channel: ClientChannel;
+  public channel: Channel;
 
   public videos: Set<HTMLVideoElement>;
   public videoList: HTMLUListElement;
@@ -35,7 +32,7 @@ class App {
   constructor() {
     const ws = new WebSocket(window.location.origin + "/socket");
 
-    this.channel = new ClientChannel(ws);
+    this.channel = new Channel(ws);
     this.registerChannelHandlers();
 
     this.videos = new Set();

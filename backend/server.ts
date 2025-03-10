@@ -14,7 +14,7 @@ function generateRandomID(): string {
   return `${timestamp}-${randomPart}`;
 }
 
-class ServerChannel extends GenericChannel<M.ClientMessage, M.ServerMessage> {
+class Channel extends GenericChannel<M.ClientMessage, M.ServerMessage> {
   constructor(ws: WebSocket, id?: string) {
     super(new NodeWebSocketAdapter(ws), M.isClientMessage, id);
   }
@@ -22,43 +22,45 @@ class ServerChannel extends GenericChannel<M.ClientMessage, M.ServerMessage> {
 
 class ChannelServer {
   public wsServer: WebSocketServer;
-  public connections: Map<string, ServerChannel>;
+  public channels: Map<string, Channel>;
 
-  constructor(server: Server) {
+  constructor(server: AppServer) {
     this.wsServer = new WebSocketServer({ server: server.httpServer });
     this.wsServer.addListener("connection", (ws, req) => {
       this.handleConnection(ws, req);
     });
 
-    this.connections = new Map();
+    this.channels = new Map();
   }
 
   private handleConnection(ws: WebSocket, req: http.IncomingMessage): void {
-    const connId = generateRandomID();
-    const conn = new ServerChannel(ws, connId);
-    this.connections.set(connId, conn);
-    console.info(`client connected: ${connId}`);
+    const ch = new Channel(ws, generateRandomID());
+    this.registerChannelMessageHandler(ch);
 
-    // boadcast the peer connection
-    this.broadcast({ type: "add-peer", peer: connId }, connId);
+    this.channels.set(ch.id!, ch);
+    console.info(`client connected: ${ch.id}`);
 
-    conn.addMessageHandler("id", (ev) => {
-      conn.sendMessage({ type: "set-id", id: connId });
+    this.broadcast({ type: "add-peer", peer: ch.id! }, ch.id!);
+
+    ch.addEventListener("close", () => {
+      this.channels.delete(ch.id!);
+      this.broadcast({ type: "delete-peer", peer: ch.id! }, ch.id!);
+    });
+  }
+
+  private registerChannelMessageHandler(ch: Channel): void {
+    ch.addMessageHandler("id", (ev) => {
+      ch.sendMessage({ type: "set-id", id: ch.id! });
     });
 
-    conn.addMessageHandler("ls-peers", (ev) => {
-      const peers = Array.from(this.connections.keys());
-      conn.sendMessage({ type: "set-peers", peers });
-    });
-
-    conn.addEventListener("close", () => {
-      this.connections.delete(connId);
-      this.broadcast({ type: "delete-peer", peer: connId }, connId);
+    ch.addMessageHandler("ls-peers", (ev) => {
+      const peers = Array.from(this.channels.keys());
+      ch.sendMessage({ type: "set-peers", peers });
     });
   }
 
   private broadcast(msg: M.ServerMessage, exceptId?: string): void {
-    for (const [id, conn] of this.connections) {
+    for (const [id, conn] of this.channels) {
       if (id == exceptId) continue;
       conn.sendMessage(msg);
     }
@@ -78,7 +80,7 @@ async function serveMainPage(
   }
 }
 
-export class Server {
+export class AppServer {
   public httpServer: http.Server;
   public channelServer: ChannelServer;
 
