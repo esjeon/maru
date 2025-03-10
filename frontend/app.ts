@@ -4,24 +4,10 @@ import {
   ServerMessage,
 } from "../shared/channel_message";
 import { GenericChannel } from "../shared/GenericChannel";
-/*
- * Structures
- *
- */
 
 interface SystemAudioField {
   systemAudio: "include" | "exclude";
 }
-
-/*
- * Constants
- *
- */
-
-/*
- * Globals
- *
- */
 
 const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
   video: {
@@ -30,11 +16,6 @@ const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
   audio: true,
   systemAudio: "include",
 };
-
-/*
- * Functions
- *
- */
 
 export class ClientChannel extends GenericChannel<
   ServerMessage,
@@ -58,23 +39,9 @@ class App {
 
   constructor() {
     const ws = new WebSocket(window.location.origin + "/socket");
-    this.channel = new ClientChannel(ws);
 
-    this.channel.addEventListener("open", (ev) => {
-      this.channel.sendMessage({ type: "id" });
-      this.channel.sendMessage({ type: "ls-peers" });
-    });
-    this.channel.addMessageHandler("set-peers", (ev) => {
-      this.peers = new Set(ev.detail.peers);
-    });
-    this.channel.addMessageHandler("add-peer", (ev) => {
-      this.peers.add(ev.detail.peer);
-      console.debug("App set-peer", ev, this.peers);
-    });
-    this.channel.addMessageHandler("delete-peer", (ev) => {
-      this.peers.delete(ev.detail.peer);
-      console.debug("Appp delete-peer", ev, this.peers);
-    });
+    this.channel = new ClientChannel(ws);
+    this.registerChannelHandlers();
 
     this.videos = new Set();
     this.videoList = document.createElement("ul");
@@ -82,11 +49,32 @@ class App {
     this.peers = new Set();
   }
 
+  private registerChannelHandlers(): void {
+    this.channel.addEventListener("open", (ev) => {
+      this.channel.sendMessage({ type: "id" });
+      this.channel.sendMessage({ type: "ls-peers" });
+    });
+
+    this.channel.addMessageHandler("set-peers", (ev) => {
+      this.peers = new Set(ev.detail.peers);
+    });
+
+    this.channel.addMessageHandler("add-peer", (ev) => {
+      this.peers.add(ev.detail.peer);
+      console.debug("App set-peer", ev, this.peers);
+    });
+
+    this.channel.addMessageHandler("delete-peer", (ev) => {
+      this.peers.delete(ev.detail.peer);
+      console.debug("Appp delete-peer", ev, this.peers);
+    });
+  }
+
   public async addStream(): Promise<void> {
     const captureStream =
       await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
 
-    // Create <video> and put the stream.
+    // Create <video> and attach the stream.
     const video = document.createElement("video")!;
     video.srcObject = captureStream;
     video.onloadedmetadata = () => video.play();

@@ -20,13 +20,10 @@ export class NodeWebSocketAdapter
       this.dispatchEvent(new CustomEvent("error", { detail: err })),
     );
 
-    ws.on("close", (code: number, reason: Buffer) =>
-      this.dispatchEvent(
-        new CustomEvent("close", {
-          detail: { code, reason: reason.toString() },
-        }),
-      ),
-    );
+    ws.on("close", (code: number, reason: Buffer) => {
+      const detail = { code, reason: reason.toString() };
+      this.dispatchEvent(new CustomEvent("close", { detail }));
+    });
 
     ws.on("message", (data: WebSocket.Data) =>
       this.dispatchEvent(new CustomEvent("message", { detail: data })),

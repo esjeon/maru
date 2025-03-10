@@ -1,10 +1,6 @@
 import { readFile } from "node:fs/promises";
-import {
-  IncomingMessage as HttpReq,
-  ServerResponse as HttpResp,
-  Server as HttpServer,
-} from "node:http";
-import * as path from "node:path";
+import * as http from "node:http";
+import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
 
 import {
@@ -23,76 +19,46 @@ function generateRandomID(): string {
   return `${timestamp}-${randomPart}`;
 }
 
-async function handleMainRequest(req: HttpReq, resp: HttpResp): Promise<void> {
-  if (req.method === "GET") {
-    const html = await readFile(path.join(import.meta.dirname, MAIN_HTML_PATH));
-    resp.writeHead(200, { "Content-Type": "text/html" }).end(html);
-  } else {
-    resp.writeHead(405, { "Content-Type": "text/plain" });
-    resp.end("Method Not Allowed");
-  }
-}
-
-class ChannelConnection extends GenericChannel<ClientMessage, ServerMessage> {
+class ServerChannel extends GenericChannel<ClientMessage, ServerMessage> {
   constructor(ws: WebSocket, id?: string) {
-    const wsAdapter = new NodeWebSocketAdapter(ws);
-    super(wsAdapter, isClientMessage, id);
+    super(new NodeWebSocketAdapter(ws), isClientMessage, id);
   }
 }
 
-class ChannelServer extends EventTarget {
+class ChannelServer {
   public wsServer: WebSocketServer;
-  public connections: Map<string, ChannelConnection>;
+  public connections: Map<string, ServerChannel>;
 
   constructor(server: Server) {
-    super();
-
     this.wsServer = new WebSocketServer({ server: server.httpServer });
     this.wsServer.addListener("connection", (ws, req) => {
-      this.onClientConnect(ws, req);
+      this.handleConnection(ws, req);
     });
 
     this.connections = new Map();
   }
 
-  private onClientConnect(ws: WebSocket, req: HttpReq): void {
+  private handleConnection(ws: WebSocket, req: http.IncomingMessage): void {
     const connId = generateRandomID();
-    const conn = new ChannelConnection(ws, connId);
+    const conn = new ServerChannel(ws, connId);
     this.connections.set(connId, conn);
     console.info(`client connected: ${connId}`);
 
     // boadcast the peer connection
-    this.broadcast(
-      {
-        type: "add-peer",
-        peer: connId,
-      },
-      connId,
-    );
+    this.broadcast({ type: "add-peer", peer: connId }, connId);
 
     conn.addMessageHandler("id", (ev) => {
-      conn.sendMessage({
-        type: "set-id",
-        id: connId,
-      });
+      conn.sendMessage({ type: "set-id", id: connId });
     });
 
     conn.addMessageHandler("ls-peers", (ev) => {
-      conn.sendMessage({
-        type: "set-peers",
-        peers: Array.from(this.connections.keys()),
-      });
+      const peers = Array.from(this.connections.keys());
+      conn.sendMessage({ type: "set-peers", peers });
     });
 
     conn.addEventListener("close", () => {
       this.connections.delete(connId);
-      this.broadcast(
-        {
-          type: "delete-peer",
-          peer: connId,
-        },
-        connId,
-      );
+      this.broadcast({ type: "delete-peer", peer: connId }, connId);
     });
   }
 
@@ -104,18 +70,35 @@ class ChannelServer extends EventTarget {
   }
 }
 
+async function serveMainPage(
+  req: http.IncomingMessage,
+  resp: http.ServerResponse,
+): Promise<void> {
+  if (req.method === "GET") {
+    const html = await readFile(join(import.meta.dirname, MAIN_HTML_PATH));
+    resp.writeHead(200, { "Content-Type": "text/html" }).end(html);
+  } else {
+    resp.writeHead(405, { "Content-Type": "text/plain" });
+    resp.end("Method Not Allowed");
+  }
+}
+
 export class Server {
-  public httpServer: HttpServer;
+  public httpServer: http.Server;
   public channelServer: ChannelServer;
 
   constructor() {
-    this.httpServer = new HttpServer(this.onRequest.bind(this));
+    this.httpServer = new http.Server((req, resp) => this.onRequest(req, resp));
     this.channelServer = new ChannelServer(this);
   }
 
-  private async onRequest(req: HttpReq, resp: HttpResp): Promise<void> {
+  private async onRequest(
+    req: http.IncomingMessage,
+    resp: http.ServerResponse,
+  ): Promise<void> {
     try {
-      if (req.url === "/") return handleMainRequest(req, resp);
+      if (req.url === "/") return serveMainPage(req, resp);
+
       resp.writeHead(404, { "Content-Type": "text/plain" });
       resp.end("Not Found");
     } catch (e) {
