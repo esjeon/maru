@@ -27,7 +27,6 @@ export class App {
   public videos: Set<HTMLVideoElement>;
   public videoList: HTMLUListElement;
 
-  public peers: Set<string>;
   public mesh: Mesh;
 
   constructor() {
@@ -38,7 +37,6 @@ export class App {
     this.videos = new Set();
     this.videoList = document.createElement("ul");
 
-    this.peers = new Set();
     this.mesh = new Mesh(this.id, this.signalingChannel, {
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
@@ -46,25 +44,21 @@ export class App {
 
   private registerChannelHandlers(): void {
     this.signalingChannel.addMessageHandler("peers", (ev) => {
-      const newPeers = new Set(ev.detail);
-
-      const removed = this.peers.difference(newPeers);
-      removed.forEach((id) => this.mesh.removePeer(id));
-
-      const added = newPeers.difference(this.peers);
-      added.forEach((id) => this.mesh.addPeer(id));
-
-      this.peers = newPeers;
+      this.mesh.setPeers(new Set(ev.detail));
     });
 
     this.signalingChannel.addMessageHandler("addPeer", (ev) => {
       const peerId = ev.detail;
-      this.peers.add(peerId);
       this.mesh.addPeer(peerId);
     });
 
     this.signalingChannel.addMessageHandler("delPeer", (ev) => {
-      this.peers.delete(ev.detail);
+      const peerId = ev.detail;
+      this.mesh.removePeer(peerId);
+    });
+
+    this.signalingChannel.addMessageHandler("rtc", (ev) => {
+      this.mesh.handleRTCMessage(ev.detail);
     });
   }
 
