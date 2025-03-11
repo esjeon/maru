@@ -3,6 +3,7 @@
     "composite": true,
     "target": "ES2024",
     "module": "ES2022",
+    "esModuleInterop": true,
 
     "declaration": true,
     "declarationMap": true,
