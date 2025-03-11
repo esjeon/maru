@@ -9,4 +9,8 @@ window.addEventListener("load", () => {
   document
     .querySelector("#videos-add")!
     .addEventListener("click", () => app.addStream());
+
+  document
+    .querySelector("#videos-throw")!
+    .addEventListener("click", () => app.throwStreamDemo());
 });

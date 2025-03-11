@@ -25,6 +25,17 @@ class PeerConnection {
         });
       }
     });
+
+    this.rtcConnection.addEventListener("track", (ev) => {
+      console.log("TRACK EVENT!!!", ev);
+      const remoteStream = new MediaStream();
+      remoteStream.addTrack(ev.track);
+
+      const video = document.createElement("video");
+      video.onloadedmetadata = () => video.play();
+      video.srcObject = remoteStream;
+      document.body.append(video);
+    });
   }
 
   public async setupCall(): Promise<void> {
@@ -32,14 +43,16 @@ class PeerConnection {
     else this.takeCall();
   }
 
-  private async makeCall(): Promise<void> {
-    this.dataChannel = this.rtcConnection.createDataChannel(
-      `${this.localId}<->${this.peerId}`,
-    );
+  public async makeCall(): Promise<void> {
+    if (!this.dataChannel) {
+      this.dataChannel = this.rtcConnection.createDataChannel(
+        `${this.localId}<->${this.peerId}`,
+      );
 
-    this.dataChannel.addEventListener("open", () =>
-      console.log("datachannle OPEN !!!!!!!!!!"),
-    );
+      this.dataChannel.addEventListener("open", () =>
+        console.log("datachannle OPEN !!!!!!!!!!"),
+      );
+    }
 
     const offer = await this.rtcConnection.createOffer();
     await this.rtcConnection.setLocalDescription(offer);
@@ -112,6 +125,7 @@ export class Mesh {
     if (msg.offer) conn.acceptOffer(msg.offer);
     if (msg.answer) conn.acceptAnswer(msg.answer);
     if (msg.iceCandidate) conn.addICECandidate(msg.iceCandidate);
+    if (msg.negotiate && conn.isMaker) conn.makeCall();
   }
 
   public setPeers(newPeers: Set<string>): void {

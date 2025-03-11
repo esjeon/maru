@@ -85,4 +85,23 @@ export class App {
       listItem.remove();
     };
   }
+
+  public async throwStreamDemo(): Promise<void> {
+    const video = this.videos.values().next().value!;
+    const mediaStream = video.srcObject as MediaStream;
+    const videoTrack = mediaStream.getVideoTracks()[0];
+    const audioTrack = mediaStream.getAudioTracks()[0];
+    console.log(mediaStream.getAudioTracks());
+
+    this.mesh.connections.forEach((conn, peerId) => {
+      conn.rtcConnection.addTrack(videoTrack, mediaStream);
+      if (audioTrack) conn.rtcConnection.addTrack(audioTrack, mediaStream);
+
+      if (conn.isMaker) conn.makeCall();
+      else
+        this.signalingChannel.sendMessage({
+          rtc: { from: this.id, to: peerId, negotiate: true },
+        });
+    });
+  }
 }
