@@ -8,7 +8,9 @@
     "dev:backend": "nodemon",
     "dev:frontend": "vite --host",
     "build:backend": "tsc -p backend/",
-    "build:frontend": "vite build",
+    "build:frontend": "vite build --emptyOutDir",
+    "build:shared": "tsc -p shared/",
+    "build": "npm run build:shared && npm run build:backend && npm run build:frontend",
     "prettify": "prettier -w './{backend,frontend,shared}/**/*.{ts,json}' '{.,.vscode}/*.json'"
   },
   "author": "Eon S. Jeon <esjeon@hyunmu.am>",
