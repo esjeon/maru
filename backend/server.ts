@@ -9,8 +9,7 @@ import { NodeWebSocketAdapter } from "./NodeWebSocketAdaptor";
 const MAIN_HTML_PATH = "../static/main.html";
 
 function parseRequestURL(req: http.IncomingMessage): URL {
-  const protocol = "http"; //req.socket.encrypted ? 'https' : 'http';
-  const baseUrl = `${protocol}://${req.headers.host}`;
+  const baseUrl = `http://${req.headers.host}`;
 
   if (!req.url) return new URL(baseUrl);
   return new URL(req.url, baseUrl);
@@ -30,78 +29,81 @@ class SignalingChannel extends signaling.GenericChannel<
 
 class SignalingServer {
   public wsServer: WebSocketServer;
-  public signalingChannels: Map<string, SignalingChannel>;
+  public channels: Map<string, SignalingChannel>;
 
   constructor(server: AppServer) {
     this.wsServer = new WebSocketServer({ server: server.httpServer });
-    this.wsServer.addListener("connection", (ws, req) => {
-      this.handleConnection(ws, req);
-    });
+    this.wsServer.addListener("connection", this.acceptConnection.bind(this));
 
-    this.signalingChannels = new Map();
+    this.channels = new Map();
   }
 
-  private handleConnection(ws: WebSocket, req: http.IncomingMessage): void {
+  private acceptConnection(ws: WebSocket, req: http.IncomingMessage): void {
     const url = parseRequestURL(req);
-    const id = url.searchParams.get("id");
-    if (url.pathname !== "/signaling" || !id) {
-      console.info("SignalingServer connection rejected: invalid request", req);
-      return ws.close();
+
+    // URL pathname must be right
+    if (url.pathname !== "/signaling") {
+      throw new Error("Endpoint not found");
     }
 
-    if (this.signalingChannels.has(id)) {
-      console.info("SignalingServer connection rejected: duplicated ID", req);
-      return ws.close();
+    // ID must be provided
+    const chanId = url.searchParams.get("id");
+    if (!chanId) {
+      throw new Error("Missing ID");
     }
 
-    const signalingChannel = new SignalingChannel(id, ws);
-    this.signalingChannels.set(signalingChannel.id!, signalingChannel);
-    this.registerChannelMessageHandler(signalingChannel);
+    // ID must NOT be already in used
+    if (this.channels.has(chanId)) {
+      throw new Error("Duplicated ID");
+    }
 
-    console.info(`client connected: ${signalingChannel.id}`);
+    // Create and register the channel
+    const chan = new SignalingChannel(chanId, ws);
+    this.channels.set(chan.id, chan);
 
-    signalingChannel.addEventListener("close", () => {
-      this.signalingChannels.delete(signalingChannel.id!);
-      this.broadcast({ delPeer: signalingChannel.id! }, signalingChannel.id!);
+    console.info(`client connected: ${chan.id}`);
+
+    //
+    // Register evnet/message handlers.
+    //
+
+    // Clean up on disconnect
+    chan.addEventListener("close", () => {
+      // Unregister the channel
+      this.channels.delete(chanId);
+
+      // Announce the removal of the peer
+      this.broadcast({ delPeer: chanId }, chanId);
     });
 
-    // Send the welcome message.
-    signalingChannel.sendMessage({
-      peers: Array.from(this.signalingChannels.keys()),
-    });
-
-    // Tell others about the new peer.
-    this.broadcast({ addPeer: signalingChannel.id! }, signalingChannel.id!);
-  }
-
-  private registerChannelMessageHandler(
-    signalingChannel: SignalingChannel,
-  ): void {
-    signalingChannel.addMessageHandler("rtc", (ev) => {
+    // Relay `rtc` messages between peers
+    chan.addMessageHandler("rtc", (ev) => {
       const rtc = ev.detail;
-      if (signalingChannel.id !== rtc.from) {
-        return console.warn(
-          "ChannelServer ignored message with invalid sender",
-          rtc,
-        );
-      }
 
-      const destChannel = this.signalingChannels.get(rtc.to);
+      // Overwrite the sender information (we know who's sending it.)
+      rtc.from = chan.id;
+
+      // Send the message to the recipient
+      const destChannel = this.channels.get(rtc.to);
       if (!destChannel) {
-        return console.warn(
-          "ChannelServer ignored message with invalid recipient",
-          rtc,
-        );
+        throw new Error("Recipient not found");
       }
-
       destChannel.sendMessage({ rtc });
     });
+
+    // Send the new peer the current list of peers.
+    chan.sendMessage({
+      peers: Array.from(this.channels.keys()),
+    });
+
+    // Announce the joining of a new peer
+    this.broadcast({ addPeer: chan.id }, chan.id);
   }
 
   private broadcast(msg: signaling.ServerMessage, exceptId?: string): void {
-    for (const [id, conn] of this.signalingChannels) {
-      if (id == exceptId) continue;
-      conn.sendMessage(msg);
+    for (const [id, chan] of this.channels) {
+      if (id === exceptId) continue;
+      chan.sendMessage(msg);
     }
   }
 }
