@@ -1,5 +1,4 @@
-import { GenericChannel, messages as M } from "../shared/channel";
-import { Message } from "../shared/channel_messages";
+import * as signaling from "../shared/signaling";
 
 declare global {
   interface Set<T> {
@@ -19,12 +18,15 @@ const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
   systemAudio: "include",
 };
 
-class Channel extends GenericChannel<M.ServerMessage, M.ClientMessage> {
+class SignalingChannel extends signaling.GenericChannel<
+  signaling.ServerMessage,
+  signaling.ClientMessage
+> {
   constructor(
-    socket: WebSocket,
+    ws: WebSocket,
     public id?: string,
   ) {
-    super(socket, M.isServerMessage, id);
+    super(ws, signaling.isServerMessage, id);
   }
 }
 
@@ -35,19 +37,19 @@ class Mesh extends EventTarget {
 
   // TODO: make sure ID exists...
   constructor(
-    public channel: Channel,
+    public signal: SignalingChannel,
     public rtcConfig: RTCConfiguration,
   ) {
     super();
 
     this.conns = new Map();
 
-    this.channel.addMessageHandler("rtc", (ev) => this.handleRTCMessage(ev));
+    this.signal.addMessageHandler("rtc", (ev) => this.handleRTCMessage(ev));
     this.dc = new Map();
   }
 
   private async handleRTCMessage(
-    ev: CustomEvent<NonNullable<Message["rtc"]>>,
+    ev: CustomEvent<NonNullable<signaling.Message["rtc"]>>,
   ): Promise<void> {
     const msg = ev.detail;
     if (!(this.id && msg.to === this.id)) {
@@ -71,7 +73,7 @@ class Mesh extends EventTarget {
       const answer = await conn.createAnswer();
       await conn.setLocalDescription(answer);
 
-      this.channel.sendMessage({
+      this.signal.sendMessage({
         rtc: { from: this.id, to: msg.from, answer },
       });
       return;
@@ -94,7 +96,7 @@ class Mesh extends EventTarget {
     const offer = await conn.createOffer();
     await conn.setLocalDescription(offer);
 
-    this.channel.sendMessage({ rtc: { from: this.id!, to: peerId, offer } });
+    this.signal.sendMessage({ rtc: { from: this.id!, to: peerId, offer } });
   }
 
   public async addPeer(peerId: string): Promise<void> {
@@ -132,7 +134,7 @@ class Mesh extends EventTarget {
     conn.addEventListener("icecandidate", (ev) => {
       console.log(ev);
       if (ev.candidate) {
-        this.channel.sendMessage({
+        this.signal.sendMessage({
           rtc: { from: this.id!, to: peerId, iceCandidate: ev.candidate },
         });
       }
@@ -149,7 +151,7 @@ class Mesh extends EventTarget {
 }
 
 class App {
-  public channel: Channel;
+  public signalingChannel: SignalingChannel;
 
   public videos: Set<HTMLVideoElement>;
   public videoList: HTMLUListElement;
@@ -160,24 +162,24 @@ class App {
   constructor() {
     const ws = new WebSocket(window.location.origin + "/socket");
 
-    this.channel = new Channel(ws);
+    this.signalingChannel = new SignalingChannel(ws);
     this.registerChannelHandlers();
 
     this.videos = new Set();
     this.videoList = document.createElement("ul");
 
     this.peers = new Set();
-    this.mesh = new Mesh(this.channel, {
+    this.mesh = new Mesh(this.signalingChannel, {
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
   }
 
   private registerChannelHandlers(): void {
-    this.channel.addMessageHandler("identity", (ev) => {
+    this.signalingChannel.addMessageHandler("identity", (ev) => {
       this.mesh.id = ev.detail;
     });
 
-    this.channel.addMessageHandler("peers", (ev) => {
+    this.signalingChannel.addMessageHandler("peers", (ev) => {
       const newPeers = new Set(ev.detail);
 
       const removed = this.peers.difference(newPeers);
@@ -189,13 +191,13 @@ class App {
       this.peers = newPeers;
     });
 
-    this.channel.addMessageHandler("addPeer", (ev) => {
+    this.signalingChannel.addMessageHandler("addPeer", (ev) => {
       const peerId = ev.detail;
       this.peers.add(peerId);
       this.mesh.addPeer(peerId);
     });
 
-    this.channel.addMessageHandler("delPeer", (ev) => {
+    this.signalingChannel.addMessageHandler("delPeer", (ev) => {
       this.peers.delete(ev.detail);
     });
   }

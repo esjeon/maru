@@ -1,4 +1,10 @@
-export * as messages from "./channel_messages";
+export {
+  ClientMessage,
+  isClientMessage,
+  isServerMessage,
+  Message,
+  ServerMessage,
+} from "./signaling_messages";
 
 type StringKeys<T> = Extract<keyof T, string>;
 
@@ -37,17 +43,21 @@ export class GenericChannel<
 
     // For Node adapter, our adapter will forward data in ev.detail
     this.socket.addEventListener("message", (ev: any) => {
-      this.dispatchRawMessage(ev.detail ?? ev.data);
+      try {
+        this.dispatchRawMessage(ev.detail ?? ev.data);
+      } catch (err) {
+        console.error("GenericChannel message error", err);
+      }
     });
   }
 
   private dispatchRawMessage(raw: any): void {
     const msg = JSON.parse(raw.toString());
-    if (!this.isValidMessage(msg)) throw new Error("Received invalid message");
+    if (!this.isValidMessage(msg)) throw new Error("invalid message");
 
     for (const key in msg) {
       if (msg[key] !== undefined) {
-        console.debug(`GenericChannel Message ${key}`, msg[key]);
+        console.debug(`GenericChannel dispatch ${key}`, msg[key]);
         this.dispatchEvent(new CustomEvent(key, { detail: msg[key] }));
       }
     }

@@ -3,7 +3,7 @@ import * as http from "node:http";
 import { join } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
 
-import { GenericChannel, messages as M } from "../shared/channel";
+import * as signaling from "../shared/signaling";
 import { NodeWebSocketAdapter } from "./NodeWebSocketAdaptor";
 
 const MAIN_HTML_PATH = "../static/main.html";
@@ -14,15 +14,18 @@ function generateRandomID(): string {
   return `${timestamp}-${randomPart}`;
 }
 
-class Channel extends GenericChannel<M.ClientMessage, M.ServerMessage> {
+class SignalingChannel extends signaling.GenericChannel<
+  signaling.ClientMessage,
+  signaling.ServerMessage
+> {
   constructor(ws: WebSocket, id?: string) {
-    super(new NodeWebSocketAdapter(ws), M.isClientMessage, id);
+    super(new NodeWebSocketAdapter(ws), signaling.isClientMessage, id);
   }
 }
 
-class ChannelServer {
+class SignalingServer {
   public wsServer: WebSocketServer;
-  public channels: Map<string, Channel>;
+  public signalingChannels: Map<string, SignalingChannel>;
 
   constructor(server: AppServer) {
     this.wsServer = new WebSocketServer({ server: server.httpServer });
@@ -30,42 +33,44 @@ class ChannelServer {
       this.handleConnection(ws, req);
     });
 
-    this.channels = new Map();
+    this.signalingChannels = new Map();
   }
 
   private handleConnection(ws: WebSocket, req: http.IncomingMessage): void {
-    const ch = new Channel(ws, generateRandomID());
-    this.channels.set(ch.id!, ch);
-    this.registerChannelMessageHandler(ch);
+    const signalingChannel = new SignalingChannel(ws, generateRandomID());
+    this.signalingChannels.set(signalingChannel.id!, signalingChannel);
+    this.registerChannelMessageHandler(signalingChannel);
 
-    console.info(`client connected: ${ch.id}`);
+    console.info(`client connected: ${signalingChannel.id}`);
 
-    ch.addEventListener("close", () => {
-      this.channels.delete(ch.id!);
-      this.broadcast({ delPeer: ch.id! }, ch.id!);
+    signalingChannel.addEventListener("close", () => {
+      this.signalingChannels.delete(signalingChannel.id!);
+      this.broadcast({ delPeer: signalingChannel.id! }, signalingChannel.id!);
     });
 
     // Send the welcome message.
-    ch.sendMessage({
-      identity: ch.id!,
-      peers: Array.from(this.channels.keys()),
+    signalingChannel.sendMessage({
+      identity: signalingChannel.id!,
+      peers: Array.from(this.signalingChannels.keys()),
     });
 
     // Tell others about the new peer.
-    this.broadcast({ addPeer: ch.id! }, ch.id!);
+    this.broadcast({ addPeer: signalingChannel.id! }, signalingChannel.id!);
   }
 
-  private registerChannelMessageHandler(ch: Channel): void {
-    ch.addMessageHandler("rtc", (ev) => {
+  private registerChannelMessageHandler(
+    signalingChannel: SignalingChannel,
+  ): void {
+    signalingChannel.addMessageHandler("rtc", (ev) => {
       const rtc = ev.detail;
-      if (ch.id !== rtc.from) {
+      if (signalingChannel.id !== rtc.from) {
         return console.warn(
           "ChannelServer ignored message with invalid sender",
           rtc,
         );
       }
 
-      const destChannel = this.channels.get(rtc.to);
+      const destChannel = this.signalingChannels.get(rtc.to);
       if (!destChannel) {
         return console.warn(
           "ChannelServer ignored message with invalid recipient",
@@ -77,8 +82,8 @@ class ChannelServer {
     });
   }
 
-  private broadcast(msg: M.ServerMessage, exceptId?: string): void {
-    for (const [id, conn] of this.channels) {
+  private broadcast(msg: signaling.ServerMessage, exceptId?: string): void {
+    for (const [id, conn] of this.signalingChannels) {
       if (id == exceptId) continue;
       conn.sendMessage(msg);
     }
@@ -100,11 +105,11 @@ async function serveMainPage(
 
 export class AppServer {
   public httpServer: http.Server;
-  public channelServer: ChannelServer;
+  public signalingServer: SignalingServer;
 
   constructor() {
     this.httpServer = new http.Server((req, resp) => this.onRequest(req, resp));
-    this.channelServer = new ChannelServer(this);
+    this.signalingServer = new SignalingServer(this);
   }
 
   private async onRequest(

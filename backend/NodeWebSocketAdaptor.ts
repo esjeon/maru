@@ -1,9 +1,9 @@
 import WebSocket from "ws";
-import { ICustomWebSocket } from "../shared/channel";
+import { ICustomWebSocket } from "../shared/signaling";
 
-/** Adapts WebSocket from `ws` packages to internal `GenericChannel` class
+/** EventTarget adapter for `ws.WebSocket`
  *
- * This class adapts EventEmitter-based `ws` WebSocket to EventTarget-based DOM WebSocket.
+ * This class adapts EventEmitter-based `ws.WebSocket` to EventTarget-based DOM `WebSocket`.
  */
 export class NodeWebSocketAdapter
   extends EventTarget
