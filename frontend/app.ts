@@ -20,7 +20,7 @@ const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
   systemAudio: "include",
 };
 
-class App {
+export class App {
   public readonly id: string;
   public signalingChannel: SignalingChannel;
 
@@ -92,14 +92,3 @@ class App {
     };
   }
 }
-
-window.addEventListener("load", () => {
-  const app = new App();
-  console.log(app);
-
-  document.querySelector("section#videos")!.append(app.videoList);
-
-  document
-    .querySelector("#videos-add")!
-    .addEventListener("click", () => app.addStream());
-});
