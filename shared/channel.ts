@@ -1,8 +1,6 @@
 export * as messages from "./channel_messages";
 
-interface Typed {
-  type: string;
-}
+type StringKeys<T> = Extract<keyof T, string>;
 
 // Define a unified WebSocket interface
 export interface ICustomWebSocket extends EventTarget {
@@ -10,12 +8,12 @@ export interface ICustomWebSocket extends EventTarget {
 }
 
 export class GenericChannel<
-  TIncoming extends Typed,
-  TOutgoing extends Typed,
+  IncomingMessage,
+  OutgoingMessage,
 > extends EventTarget {
   constructor(
     public socket: ICustomWebSocket,
-    private isValidMessage: (obj: any) => obj is TIncoming,
+    private isValidMessage: (obj: any) => obj is IncomingMessage,
     public id?: string,
   ) {
     super();
@@ -47,19 +45,22 @@ export class GenericChannel<
     const msg = JSON.parse(raw.toString());
     if (!this.isValidMessage(msg)) throw new Error("Received invalid message");
 
-    this.dispatchEvent(new CustomEvent(msg.type, { detail: msg }));
+    for (const key in msg) {
+      if (msg[key] !== undefined)
+        this.dispatchEvent(new CustomEvent(key, { detail: msg[key] }));
+    }
   }
 
-  public addMessageHandler<T extends TIncoming["type"]>(
+  public addMessageHandler<T extends StringKeys<IncomingMessage>>(
     type: T,
-    handler: (ev: CustomEvent<Extract<TIncoming, { type: T }>>) => void,
+    handler: (ev: CustomEvent<NonNullable<IncomingMessage[T]>>) => void,
   ): void {
     this.addEventListener(type, (ev) =>
-      handler(ev as CustomEvent<Extract<TIncoming, { type: T }>>),
+      handler(ev as CustomEvent<NonNullable<IncomingMessage[T]>>),
     );
   }
 
-  public sendMessage(message: TOutgoing): void {
+  public sendMessage(message: OutgoingMessage): void {
     this.socket.send(JSON.stringify(message));
   }
 }

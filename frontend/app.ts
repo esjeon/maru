@@ -42,22 +42,17 @@ class App {
   }
 
   private registerChannelHandlers(): void {
-    this.channel.addEventListener("open", (ev) => {
-      this.channel.sendMessage({ type: "id" });
-      this.channel.sendMessage({ type: "ls-peers" });
+    this.channel.addMessageHandler("peers", (ev) => {
+      this.peers = new Set(ev.detail);
     });
 
-    this.channel.addMessageHandler("set-peers", (ev) => {
-      this.peers = new Set(ev.detail.peers);
-    });
-
-    this.channel.addMessageHandler("add-peer", (ev) => {
-      this.peers.add(ev.detail.peer);
+    this.channel.addMessageHandler("addPeer", (ev) => {
+      this.peers.add(ev.detail);
       console.debug("App set-peer", ev, this.peers);
     });
 
-    this.channel.addMessageHandler("delete-peer", (ev) => {
-      this.peers.delete(ev.detail.peer);
+    this.channel.addMessageHandler("delPeer", (ev) => {
+      this.peers.delete(ev.detail);
       console.debug("Appp delete-peer", ev, this.peers);
     });
   }

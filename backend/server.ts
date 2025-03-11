@@ -35,29 +35,27 @@ class ChannelServer {
 
   private handleConnection(ws: WebSocket, req: http.IncomingMessage): void {
     const ch = new Channel(ws, generateRandomID());
+    this.channels.set(ch.id!, ch);
     this.registerChannelMessageHandler(ch);
 
-    this.channels.set(ch.id!, ch);
     console.info(`client connected: ${ch.id}`);
-
-    this.broadcast({ type: "add-peer", peer: ch.id! }, ch.id!);
 
     ch.addEventListener("close", () => {
       this.channels.delete(ch.id!);
-      this.broadcast({ type: "delete-peer", peer: ch.id! }, ch.id!);
-    });
-  }
-
-  private registerChannelMessageHandler(ch: Channel): void {
-    ch.addMessageHandler("id", (ev) => {
-      ch.sendMessage({ type: "set-id", id: ch.id! });
+      this.broadcast({ delPeer: ch.id! }, ch.id!);
     });
 
-    ch.addMessageHandler("ls-peers", (ev) => {
-      const peers = Array.from(this.channels.keys());
-      ch.sendMessage({ type: "set-peers", peers });
+    // Send the welcome message.
+    ch.sendMessage({
+      identity: ch.id!,
+      peers: Array.from(this.channels.keys()),
     });
+
+    // Tell others about the new peer.
+    this.broadcast({ addPeer: ch.id! }, ch.id!);
   }
+
+  private registerChannelMessageHandler(ch: Channel): void {}
 
   private broadcast(msg: M.ServerMessage, exceptId?: string): void {
     for (const [id, conn] of this.channels) {
