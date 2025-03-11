@@ -1,10 +1,10 @@
-export {
-  ClientMessage,
-  isClientMessage,
-  isServerMessage,
-  Message,
-  ServerMessage,
-} from "./signaling_messages";
+import * as messages from "./signaling_messages";
+
+export type Message = messages.Message;
+export type ClientMessage = messages.ClientMessage;
+export type ServerMessage = messages.ServerMessage;
+export const isClientMessage = messages.isClientMessage;
+export const isServerMessage = messages.isServerMessage;
 
 type StringKeys<T> = Extract<keyof T, string>;
 
