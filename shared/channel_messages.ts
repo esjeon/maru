@@ -8,51 +8,97 @@ export interface Message {
   addPeer?: string;
   delPeer?: string;
 
-  rtcOffer?: any;
-  rtcAnswer?: any;
+  rtc?: {
+    from: string;
+    to: string;
+    offer?: NonNullable<any>;
+    answer?: NonNullable<any>;
+    iceCandidate?: NonNullable<any>;
+  };
 
   // TODO: client authentication
   //auth?: any;
 }
 
-export type ClientMessage = Pick<Message, "rtcOffer" | "rtcAnswer">;
+export type ClientMessage = Pick<Message, "rtc">;
 
 export type ServerMessage = Pick<
   Message,
-  "identity" | "peers" | "addPeer" | "delPeer" | "rtcOffer" | "rtcAnswer"
+  "identity" | "peers" | "addPeer" | "delPeer" | "rtc"
 >;
 
 export function isClientMessage(obj: any): obj is ClientMessage {
-  // Must be an object and not null.
+  // Must be a non-null object
   if (typeof obj !== "object" || obj === null) return false;
+
+  // Ensure the rtc property exists and is a non-null object
+  if (!("rtc" in obj) || typeof obj.rtc !== "object" || obj.rtc === null)
+    return false;
+
+  // Check required rtc fields
+  if (typeof obj.rtc.from !== "string") return false;
+  if (typeof obj.rtc.to !== "string") return false;
+
+  // If present, check that optional rtc fields are not null or undefined.
+  if (
+    "offer" in obj.rtc &&
+    (obj.rtc.offer === null || obj.rtc.offer === undefined)
+  )
+    return false;
+  if (
+    "answer" in obj.rtc &&
+    (obj.rtc.answer === null || obj.rtc.answer === undefined)
+  )
+    return false;
+  if (
+    "iceCandidate" in obj.rtc &&
+    (obj.rtc.iceCandidate === null || obj.rtc.iceCandidate === undefined)
+  )
+    return false;
 
   return true;
 }
 
 export function isServerMessage(obj: any): obj is ServerMessage {
-  // Must be an object and not null.
+  // Must be a non-null object
   if (typeof obj !== "object" || obj === null) return false;
 
-  // Check type of identity if present.
-  if (obj.identity !== undefined && typeof obj.identity !== "string")
-    return false;
+  // If identity is present, it must be a string.
+  if ("identity" in obj && typeof obj.identity !== "string") return false;
 
-  // Check type of peers if present.
-  if (obj.peers !== undefined) {
+  // If peers is present, it must be an array of strings.
+  if ("peers" in obj) {
     if (!Array.isArray(obj.peers)) return false;
-    // Check that every element in the peers array is a string.
-    for (let i = 0; i < obj.peers.length; i++) {
-      if (typeof obj.peers[i] !== "string") return false;
-    }
+    if (!obj.peers.every((peer: any) => typeof peer === "string")) return false;
   }
 
-  // Check type of addPeer if present.
-  if (obj.addPeer !== undefined && typeof obj.addPeer !== "string")
-    return false;
+  // If addPeer is present, it must be a string.
+  if ("addPeer" in obj && typeof obj.addPeer !== "string") return false;
 
-  // Check type of delPeer if present.
-  if (obj.delPeer !== undefined && typeof obj.delPeer !== "string")
-    return false;
+  // If delPeer is present, it must be a string.
+  if ("delPeer" in obj && typeof obj.delPeer !== "string") return false;
+
+  // If rtc is present, it must be a non-null object with required fields.
+  if ("rtc" in obj) {
+    if (typeof obj.rtc !== "object" || obj.rtc === null) return false;
+    if (typeof obj.rtc.from !== "string") return false;
+    if (typeof obj.rtc.to !== "string") return false;
+    if (
+      "offer" in obj.rtc &&
+      (obj.rtc.offer === null || obj.rtc.offer === undefined)
+    )
+      return false;
+    if (
+      "answer" in obj.rtc &&
+      (obj.rtc.answer === null || obj.rtc.answer === undefined)
+    )
+      return false;
+    if (
+      "iceCandidate" in obj.rtc &&
+      (obj.rtc.iceCandidate === null || obj.rtc.iceCandidate === undefined)
+    )
+      return false;
+  }
 
   return true;
 }

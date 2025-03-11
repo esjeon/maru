@@ -55,7 +55,27 @@ class ChannelServer {
     this.broadcast({ addPeer: ch.id! }, ch.id!);
   }
 
-  private registerChannelMessageHandler(ch: Channel): void {}
+  private registerChannelMessageHandler(ch: Channel): void {
+    ch.addMessageHandler("rtc", (ev) => {
+      const rtc = ev.detail;
+      if (ch.id !== rtc.from) {
+        return console.warn(
+          "ChannelServer ignored message with invalid sender",
+          rtc,
+        );
+      }
+
+      const destChannel = this.channels.get(rtc.to);
+      if (!destChannel) {
+        return console.warn(
+          "ChannelServer ignored message with invalid recipient",
+          rtc,
+        );
+      }
+
+      destChannel.sendMessage({ rtc });
+    });
+  }
 
   private broadcast(msg: M.ServerMessage, exceptId?: string): void {
     for (const [id, conn] of this.channels) {

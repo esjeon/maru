@@ -46,8 +46,10 @@ export class GenericChannel<
     if (!this.isValidMessage(msg)) throw new Error("Received invalid message");
 
     for (const key in msg) {
-      if (msg[key] !== undefined)
+      if (msg[key] !== undefined) {
+        console.debug(`GenericChannel Message ${key}`, msg[key]);
         this.dispatchEvent(new CustomEvent(key, { detail: msg[key] }));
+      }
     }
   }
 
