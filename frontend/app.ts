@@ -21,7 +21,7 @@ const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
 };
 
 class App {
-  public id: string;
+  public readonly id: string;
   public signalingChannel: SignalingChannel;
 
   public videos: Set<HTMLVideoElement>;
@@ -39,16 +39,12 @@ class App {
     this.videoList = document.createElement("ul");
 
     this.peers = new Set();
-    this.mesh = new Mesh(this.signalingChannel, {
+    this.mesh = new Mesh(this.id, this.signalingChannel, {
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
   }
 
   private registerChannelHandlers(): void {
-    this.signalingChannel.addMessageHandler("identity", (ev) => {
-      this.mesh.id = ev.detail;
-    });
-
     this.signalingChannel.addMessageHandler("peers", (ev) => {
       const newPeers = new Set(ev.detail);
 

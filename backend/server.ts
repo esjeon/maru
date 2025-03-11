@@ -8,20 +8,11 @@ import { NodeWebSocketAdapter } from "./NodeWebSocketAdaptor";
 
 const MAIN_HTML_PATH = "../static/main.html";
 
-function generateRandomID(): string {
-  const timestamp = Date.now().toString(36);
-  const randomPart = Math.random().toString(36).substring(2, 8);
-  return `${timestamp}-${randomPart}`;
-}
-
 function parseRequestURL(req: http.IncomingMessage): URL {
   const protocol = "http"; //req.socket.encrypted ? 'https' : 'http';
   const baseUrl = `${protocol}://${req.headers.host}`;
 
-  if (!req.url) {
-    return new URL(baseUrl);
-  }
-
+  if (!req.url) return new URL(baseUrl);
   return new URL(req.url, baseUrl);
 }
 
@@ -30,7 +21,7 @@ class SignalingChannel extends signaling.GenericChannel<
   signaling.ServerMessage
 > {
   constructor(
-    public id: string,
+    public readonly id: string,
     ws: WebSocket,
   ) {
     super(new NodeWebSocketAdapter(ws), signaling.isClientMessage);
@@ -54,7 +45,12 @@ class SignalingServer {
     const url = parseRequestURL(req);
     const id = url.searchParams.get("id");
     if (url.pathname !== "/signaling" || !id) {
-      console.info("SignalingServer connection request rejected", req);
+      console.info("SignalingServer connection rejected: invalid request", req);
+      return ws.close();
+    }
+
+    if (this.signalingChannels.has(id)) {
+      console.info("SignalingServer connection rejected: duplicated ID", req);
       return ws.close();
     }
 
@@ -71,7 +67,6 @@ class SignalingServer {
 
     // Send the welcome message.
     signalingChannel.sendMessage({
-      identity: signalingChannel.id!,
       peers: Array.from(this.signalingChannels.keys()),
     });
 

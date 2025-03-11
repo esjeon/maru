@@ -5,7 +5,11 @@ export class SignalingChannel extends signaling.GenericChannel<
   signaling.ClientMessage
 > {
   constructor(public id: string) {
-    const ws = new WebSocket(window.location.origin + `/signaling?id=${id}`);
+    const url = new URL(`/signaling`, window.location.origin);
+    url.protocol = "ws";
+    url.searchParams.set("id", id);
+
+    const ws = new WebSocket(url);
     super(ws, signaling.isServerMessage);
   }
 }

@@ -5,7 +5,7 @@ export default defineConfig({
   server: {
     port: 3001,
     proxy: {
-      "/socket": "ws://localhost:3000/socket",
+      "/signaling": "ws://localhost:3000/",
     },
   },
   build: {

@@ -2,12 +2,12 @@ import * as signaling from "../shared/signaling";
 import { SignalingChannel } from "./SignalingChannel";
 
 export class Mesh extends EventTarget {
-  public id?: string;
   public conns: Map<string, RTCPeerConnection>;
   public dc: Map<string, RTCDataChannel>;
 
   // TODO: make sure ID exists...
   constructor(
+    public readonly id: string,
     public signal: SignalingChannel,
     public rtcConfig: RTCConfiguration,
   ) {
@@ -23,7 +23,7 @@ export class Mesh extends EventTarget {
     ev: CustomEvent<NonNullable<signaling.Message["rtc"]>>,
   ): Promise<void> {
     const msg = ev.detail;
-    if (!(this.id && msg.to === this.id)) {
+    if (msg.to !== this.id) {
       return console.warn("ignored message with wrong recipient", ev);
     }
 
@@ -67,17 +67,17 @@ export class Mesh extends EventTarget {
     const offer = await conn.createOffer();
     await conn.setLocalDescription(offer);
 
-    this.signal.sendMessage({ rtc: { from: this.id!, to: peerId, offer } });
+    this.signal.sendMessage({ rtc: { from: this.id, to: peerId, offer } });
   }
 
   public async addPeer(peerId: string): Promise<void> {
-    if (peerId === this.id!) return;
+    if (peerId === this.id) return;
     if (this.conns.has(peerId)) return;
 
     const conn = new RTCPeerConnection(this.rtcConfig);
     this.conns.set(peerId, conn);
 
-    if (this.id! < peerId) {
+    if (this.id < peerId) {
       console.log("make call", peerId);
       const dc = conn.createDataChannel("testchannel");
       this.dc.set(peerId, dc);
@@ -106,7 +106,7 @@ export class Mesh extends EventTarget {
       console.log(ev);
       if (ev.candidate) {
         this.signal.sendMessage({
-          rtc: { from: this.id!, to: peerId, iceCandidate: ev.candidate },
+          rtc: { from: this.id, to: peerId, iceCandidate: ev.candidate },
         });
       }
     });

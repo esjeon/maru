@@ -1,7 +1,4 @@
 export interface Message {
-  /** Tell client its ID */
-  identity?: string;
-
   /** Share the list of current peers */
   peers?: string[];
 
@@ -24,7 +21,7 @@ export type ClientMessage = Pick<Message, "rtc">;
 
 export type ServerMessage = Pick<
   Message,
-  "identity" | "peers" | "addPeer" | "delPeer" | "rtc"
+  "peers" | "addPeer" | "delPeer" | "rtc"
 >;
 
 export function isClientMessage(obj: any): obj is ClientMessage {
@@ -62,9 +59,6 @@ export function isClientMessage(obj: any): obj is ClientMessage {
 export function isServerMessage(obj: any): obj is ServerMessage {
   // Must be a non-null object
   if (typeof obj !== "object" || obj === null) return false;
-
-  // If identity is present, it must be a string.
-  if ("identity" in obj && typeof obj.identity !== "string") return false;
 
   // If peers is present, it must be an array of strings.
   if ("peers" in obj) {
