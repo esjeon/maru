@@ -1,122 +1,149 @@
 import * as signaling from "../shared/signaling";
 import { SignalingChannel } from "./SignalingChannel";
 
-export class Mesh extends EventTarget {
-  public conns: Map<string, RTCPeerConnection>;
-  public dc: Map<string, RTCDataChannel>;
+class PeerConnection {
+  public dataChannel?: RTCDataChannel;
 
-  // TODO: make sure ID exists...
+  public isMaker: boolean;
+
   constructor(
-    public readonly id: string,
-    public signal: SignalingChannel,
-    public rtcConfig: RTCConfiguration,
+    public rtcConnection: RTCPeerConnection,
+    public localId: string,
+    public peerId: string,
+    public signalingChannel: SignalingChannel,
   ) {
-    super();
+    this.isMaker = localId < peerId;
 
-    this.conns = new Map();
-
-    this.signal.addMessageHandler("rtc", (ev) => this.handleRTCMessage(ev));
-    this.dc = new Map();
-  }
-
-  private async handleRTCMessage(
-    ev: CustomEvent<NonNullable<signaling.Message["rtc"]>>,
-  ): Promise<void> {
-    const msg = ev.detail;
-    if (msg.to !== this.id) {
-      return console.warn("ignored message with wrong recipient", ev);
-    }
-
-    const conn = this.conns.get(msg.from);
-    if (!conn) {
-      return console.warn("ignored message with wrong sender", ev);
-    }
-
-    // TODO: check who's initiating the connection
-    if (msg.answer) {
-      const remoteDesc = new RTCSessionDescription(msg.answer);
-      return conn.setRemoteDescription(remoteDesc);
-    }
-
-    if (msg.offer) {
-      conn.setRemoteDescription(new RTCSessionDescription(msg.offer));
-
-      const answer = await conn.createAnswer();
-      await conn.setLocalDescription(answer);
-
-      this.signal.sendMessage({
-        rtc: { from: this.id, to: msg.from, answer },
-      });
-      return;
-    }
-
-    if (msg.iceCandidate) {
-      try {
-        await conn.addIceCandidate(msg.iceCandidate);
-      } catch (err) {
-        console.error("Error adding received ice candidate", err);
-      }
-      return;
-    }
-  }
-
-  private async rtcMakeCall(
-    conn: RTCPeerConnection,
-    peerId: string,
-  ): Promise<void> {
-    const offer = await conn.createOffer();
-    await conn.setLocalDescription(offer);
-
-    this.signal.sendMessage({ rtc: { from: this.id, to: peerId, offer } });
-  }
-
-  public async addPeer(peerId: string): Promise<void> {
-    if (peerId === this.id) return;
-    if (this.conns.has(peerId)) return;
-
-    const conn = new RTCPeerConnection(this.rtcConfig);
-    this.conns.set(peerId, conn);
-
-    if (this.id < peerId) {
-      console.log("make call", peerId);
-      const dc = conn.createDataChannel("testchannel");
-      this.dc.set(peerId, dc);
-
-      dc.addEventListener("open", (ev) => {
-        console.log("datachannel open", ev);
-        dc.send("Hello World");
-      });
-
-      this.rtcMakeCall(conn, peerId);
-    } else {
-      console.log("waiting for call", peerId);
-
-      conn.addEventListener("datachannel", (ev) => {
-        console.log("RTCPeerConnection datachannel", ev);
-        const dc = ev.channel;
-        this.dc.set(peerId, dc);
-
-        dc.addEventListener("message", (ev) => {
-          console.log("DataChannel message", ev);
-        });
-      });
-    }
-
-    conn.addEventListener("icecandidate", (ev) => {
-      console.log(ev);
+    this.rtcConnection.addEventListener("icecandidate", (ev) => {
       if (ev.candidate) {
-        this.signal.sendMessage({
-          rtc: { from: this.id, to: peerId, iceCandidate: ev.candidate },
+        this.signalingChannel.sendMessage({
+          rtc: {
+            from: this.localId,
+            to: this.peerId,
+            iceCandidate: ev.candidate,
+          },
         });
       }
     });
   }
 
-  public removePeer(peerId: string) {
-    const conn = this.conns.get(peerId);
-    if (conn) conn.close();
+  public async setupCall(): Promise<void> {
+    if (this.isMaker) this.makeCall();
+    else this.takeCall();
+  }
 
-    this.dc.delete(peerId);
-    this.conns.delete(peerId);
+  private async makeCall(): Promise<void> {
+    this.dataChannel = this.rtcConnection.createDataChannel(
+      `${this.localId}<->${this.peerId}`,
+    );
+
+    this.dataChannel.addEventListener("open", () =>
+      console.log("datachannle OPEN !!!!!!!!!!"),
+    );
+
+    const offer = await this.rtcConnection.createOffer();
+    await this.rtcConnection.setLocalDescription(offer);
+
+    this.signalingChannel.sendMessage({
+      rtc: { from: this.localId, to: this.peerId, offer },
+    });
+  }
+
+  private async takeCall(): Promise<void> {
+    this.rtcConnection.addEventListener("datachannel", (ev) => {
+      console.log("RTCPeerConnection datachannel", ev);
+
+      this.dataChannel = ev.channel;
+      // TODO: fire datachannel event
+
+      this.dataChannel.addEventListener("open", () =>
+        console.log("datachannle OPEN !!!!!!!!!!"),
+      );
+    });
+  }
+
+  public async acceptOffer(offer: RTCSessionDescriptionInit): Promise<void> {
+    if (!this.isMaker) {
+      this.rtcConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+      const answer = await this.rtcConnection.createAnswer();
+      await this.rtcConnection.setLocalDescription(answer);
+
+      this.signalingChannel.sendMessage({
+        rtc: { from: this.localId, to: this.peerId, answer },
+      });
+    }
+  }
+
+  public acceptAnswer(answer: RTCSessionDescriptionInit): void {
+    if (this.isMaker) {
+      this.rtcConnection.setRemoteDescription(
+        new RTCSessionDescription(answer),
+      );
+    }
+  }
+
+  public addICECandidate(candidate: RTCIceCandidate): void {
+    this.rtcConnection.addIceCandidate(candidate);
+  }
+
+  public close(): void {
+    this.rtcConnection.close();
+  }
+}
+
+export class Mesh {
+  public connections: Map<string, PeerConnection>;
+
+  constructor(
+    public localId: string,
+    public signalingChannel: SignalingChannel,
+    public rtcConfig: RTCConfiguration,
+  ) {
+    this.connections = new Map();
+  }
+
+  public handleRTCMessage(msg: NonNullable<signaling.Message["rtc"]>): void {
+    if (msg.to !== this.localId) throw new Error("wrong recipient");
+
+    const conn = this.connections.get(msg.from);
+    if (!conn) throw new Error("wrong sender");
+
+    if (msg.offer) conn.acceptOffer(msg.offer);
+    if (msg.answer) conn.acceptAnswer(msg.answer);
+    if (msg.iceCandidate) conn.addICECandidate(msg.iceCandidate);
+  }
+
+  public setPeers(newPeers: Set<string>): void {
+    const oldPeers = new Set(this.connections.keys());
+
+    const removed = oldPeers.difference(newPeers);
+    removed.forEach((id) => this.removePeer(id));
+
+    const added = newPeers.difference(oldPeers);
+    added.forEach((id) => this.addPeer(id));
+  }
+
+  public addPeer(peerId: string): void {
+    if (peerId === this.localId) return;
+    if (this.connections.has(peerId)) return;
+
+    const conn = new PeerConnection(
+      new RTCPeerConnection(this.rtcConfig),
+      this.localId,
+      peerId,
+      this.signalingChannel,
+    );
+    this.connections.set(peerId, conn);
+
+    conn.setupCall();
+  }
+
+  public removePeer(peerId: string) {
+    const conn = this.connections.get(peerId);
+    if (conn) {
+      conn.close();
+      this.connections.delete(peerId);
+    }
   }
 }
