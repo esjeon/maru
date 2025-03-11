@@ -1,5 +1,6 @@
 import { Mesh } from "./Mesh";
 import { SignalingChannel } from "./SignalingChannel";
+import { generateRandomID } from "../shared/utils";
 
 declare global {
   interface Set<T> {
@@ -20,6 +21,7 @@ const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
 };
 
 class App {
+  public id: string;
   public signalingChannel: SignalingChannel;
 
   public videos: Set<HTMLVideoElement>;
@@ -29,9 +31,8 @@ class App {
   public mesh: Mesh;
 
   constructor() {
-    const ws = new WebSocket(window.location.origin + "/socket");
-
-    this.signalingChannel = new SignalingChannel(ws);
+    this.id = generateRandomID("app");
+    this.signalingChannel = new SignalingChannel(this.id);
     this.registerChannelHandlers();
 
     this.videos = new Set();

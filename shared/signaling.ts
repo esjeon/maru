@@ -20,7 +20,6 @@ export class GenericChannel<
   constructor(
     public socket: ICustomWebSocket,
     private isValidMessage: (obj: any) => obj is IncomingMessage,
-    public id?: string,
   ) {
     super();
     this.registerWebSocketHandlers();

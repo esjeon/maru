@@ -4,10 +4,8 @@ export class SignalingChannel extends signaling.GenericChannel<
   signaling.ServerMessage,
   signaling.ClientMessage
 > {
-  constructor(
-    ws: WebSocket,
-    public id?: string,
-  ) {
-    super(ws, signaling.isServerMessage, id);
+  constructor(public id: string) {
+    const ws = new WebSocket(window.location.origin + `/signaling?id=${id}`);
+    super(ws, signaling.isServerMessage);
   }
 }

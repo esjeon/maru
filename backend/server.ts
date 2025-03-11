@@ -14,12 +14,26 @@ function generateRandomID(): string {
   return `${timestamp}-${randomPart}`;
 }
 
+function parseRequestURL(req: http.IncomingMessage): URL {
+  const protocol = "http"; //req.socket.encrypted ? 'https' : 'http';
+  const baseUrl = `${protocol}://${req.headers.host}`;
+
+  if (!req.url) {
+    return new URL(baseUrl);
+  }
+
+  return new URL(req.url, baseUrl);
+}
+
 class SignalingChannel extends signaling.GenericChannel<
   signaling.ClientMessage,
   signaling.ServerMessage
 > {
-  constructor(ws: WebSocket, id?: string) {
-    super(new NodeWebSocketAdapter(ws), signaling.isClientMessage, id);
+  constructor(
+    public id: string,
+    ws: WebSocket,
+  ) {
+    super(new NodeWebSocketAdapter(ws), signaling.isClientMessage);
   }
 }
 
@@ -37,7 +51,14 @@ class SignalingServer {
   }
 
   private handleConnection(ws: WebSocket, req: http.IncomingMessage): void {
-    const signalingChannel = new SignalingChannel(ws, generateRandomID());
+    const url = parseRequestURL(req);
+    const id = url.searchParams.get("id");
+    if (url.pathname !== "/signaling" || !id) {
+      console.info("SignalingServer connection request rejected", req);
+      return ws.close();
+    }
+
+    const signalingChannel = new SignalingChannel(id, ws);
     this.signalingChannels.set(signalingChannel.id!, signalingChannel);
     this.registerChannelMessageHandler(signalingChannel);
 
