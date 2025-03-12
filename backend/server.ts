@@ -114,7 +114,9 @@ async function serveMainPage(
 ): Promise<void> {
   if (req.method === "GET") {
     const html = await readFile(join(import.meta.dirname, MAIN_HTML_PATH));
-    resp.writeHead(200, { "Content-Type": "text/html" }).end(html);
+    resp.setHeader("Content-Type", "text/html");
+    resp.setHeader("Permissions-Policy", "autoplay=(self)");
+    resp.end(html);
   } else {
     resp.writeHead(405, { "Content-Type": "text/plain" });
     resp.end("Method Not Allowed");

@@ -27,11 +27,13 @@ class PeerConnection {
     });
 
     this.rtcConnection.addEventListener("track", (ev) => {
-      console.log("TRACK EVENT!!!", ev);
+      // TODO: generalize this feature
       const remoteStream = new MediaStream();
       remoteStream.addTrack(ev.track);
 
       const video = document.createElement("video");
+      video.autoplay = true;
+      video.muted = true;
       video.onloadedmetadata = () => video.play();
       video.srcObject = remoteStream;
       document.body.append(video);
