@@ -4,7 +4,7 @@ export class SignalingChannel extends signaling.GenericChannel<
   signaling.ServerMessage,
   signaling.ClientMessage
 > {
-  constructor(public id: string) {
+  constructor(id: string) {
     const url = new URL(`/signaling`, window.location.origin);
     url.protocol = "ws";
     url.searchParams.set("id", id);

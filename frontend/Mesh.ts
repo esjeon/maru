@@ -107,13 +107,36 @@ class PeerConnection {
 
 export class Mesh {
   public connections: Map<string, PeerConnection>;
+  public signalingChannel: SignalingChannel;
 
   constructor(
     public localId: string,
-    public signalingChannel: SignalingChannel,
     public rtcConfig: RTCConfiguration,
   ) {
+    this.signalingChannel = new SignalingChannel(this.localId);
+    this.registerSignalHandlers();
+
     this.connections = new Map();
+  }
+
+  private registerSignalHandlers(): void {
+    this.signalingChannel.addMessageHandler("peers", (ev) => {
+      this.setPeers(new Set(ev.detail));
+    });
+
+    this.signalingChannel.addMessageHandler("addPeer", (ev) => {
+      const peerId = ev.detail;
+      this.addPeer(peerId);
+    });
+
+    this.signalingChannel.addMessageHandler("delPeer", (ev) => {
+      const peerId = ev.detail;
+      this.removePeer(peerId);
+    });
+
+    this.signalingChannel.addMessageHandler("rtc", (ev) => {
+      this.handleRTCMessage(ev.detail);
+    });
   }
 
   public handleRTCMessage(msg: NonNullable<signaling.Message["rtc"]>): void {
