@@ -11,7 +11,6 @@ export interface Message {
     offer?: NonNullable<any>;
     answer?: NonNullable<any>;
     iceCandidate?: NonNullable<any>;
-    negotiate?: boolean;
   };
 
   // TODO: client authentication

@@ -69,12 +69,6 @@ export class App {
     this.mesh.connections.forEach((conn, peerId) => {
       conn.rtcConnection.addTrack(videoTrack, mediaStream);
       if (audioTrack) conn.rtcConnection.addTrack(audioTrack, mediaStream);
-
-      if (conn.isMaker) conn.makeCall();
-      else
-        this.mesh.signalingChannel.sendMessage({
-          rtc: { from: this.mesh.localId, to: peerId, negotiate: true },
-        });
     });
   }
 }
