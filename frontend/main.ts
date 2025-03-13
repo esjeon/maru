@@ -4,7 +4,7 @@ window.addEventListener("load", () => {
   const app = new App();
   console.log(app);
 
-  document.querySelector("section#videos")!.append(app.videoList);
+  document.querySelector("section#videos")!.append(app.streamList.ul);
 
   document
     .querySelector("#videos-add")!
