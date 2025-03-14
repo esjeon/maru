@@ -34,11 +34,12 @@ export class App {
 
   public addStream(stream: MediaStream): void {
     this.streams.add(stream);
+    this.streamList.render(this.streams);
+
     stream.addEventListener("inactive", () => {
       this.streams.delete(stream);
+      this.streamList.render(this.streams);
     });
-
-    this.streamList.render(this.streams);
   }
 
   public async throwStreamDemo(): Promise<void> {
