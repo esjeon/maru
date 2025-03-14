@@ -16,8 +16,10 @@ export class StreamListUI {
       let video = this.videoElementMap.get(stream);
       if (!video) {
         video = document.createElement("video");
-        video.onloadedmetadata = () => video!.play();
         video.srcObject = stream;
+        video.autoplay = true;
+        video.muted = true;
+        video.addEventListener("loadedmetadata", () => video!.play());
 
         this.videoElementMap.set(stream, video);
       }

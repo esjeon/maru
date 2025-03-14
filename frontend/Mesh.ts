@@ -1,4 +1,9 @@
 import { SignalingChannel } from "./SignalingChannel";
+import { CustomEventTarget } from "../shared/CustomEventTarget";
+
+interface MeshEventMap {
+  track: { peerId: string; track: MediaStreamTrack };
+}
 
 /** The baic strategy where no negotiation is taking place.
  *
@@ -28,7 +33,7 @@ class NeutralStrategy {
   }
 
   onLocalICECandidate(localCandidate: RTCIceCandidate): void {
-    this.conn.signalingChannel.sendMessage({
+    this.conn.mesh.signalingChannel.sendMessage({
       rtc: {
         from: this.conn.localId,
         to: this.conn.remoteId,
@@ -57,7 +62,7 @@ class CalleeStrategy extends NeutralStrategy {
   }
 
   onLocalAnswer(answer: RTCSessionDescriptionInit): void {
-    this.conn.signalingChannel.sendMessage({
+    this.conn.mesh.signalingChannel.sendMessage({
       rtc: { from: this.conn.localId, to: this.conn.remoteId, answer },
     });
 
@@ -85,7 +90,7 @@ class CallerStrategy extends NeutralStrategy {
   }
 
   onLocalOffer(offer: RTCSessionDescriptionInit): void {
-    this.conn.signalingChannel.sendMessage({
+    this.conn.mesh.signalingChannel.sendMessage({
       rtc: { from: this.conn.localId, to: this.conn.remoteId, offer },
     });
   }
@@ -122,10 +127,10 @@ class PeerConnection {
   public dataChannel?: RTCDataChannel;
 
   constructor(
+    public mesh: Mesh,
     public rtcConnection: RTCPeerConnection,
     public localId: string,
     public remoteId: string,
-    public signalingChannel: SignalingChannel,
   ) {
     this.strategy = new NeutralStrategy(this);
 
@@ -148,16 +153,8 @@ class PeerConnection {
     });
 
     this.rtcConnection.addEventListener("track", (ev) => {
-      // TODO: generalize this feature
-      const remoteStream = new MediaStream();
-      remoteStream.addTrack(ev.track);
-
-      const video = document.createElement("video");
-      video.autoplay = true;
-      video.muted = true;
-      video.onloadedmetadata = () => video.play();
-      video.srcObject = remoteStream;
-      document.body.append(video);
+      const detail = { peerId: this.remoteId, track: ev.track };
+      this.mesh.dispatchEvent(new CustomEvent("track", { detail }));
     });
   }
 
@@ -181,12 +178,11 @@ class PeerConnection {
     this.rtcConnection.close();
   }
 }
-
 /** Mesh network containing multiple peers
  *
  * This class manages the peer connections and handle signaling messages from signaling channel.
  */
-export class Mesh {
+export class Mesh extends CustomEventTarget<MeshEventMap> {
   public connections: Map<string, PeerConnection>;
   public signalingChannel: SignalingChannel;
 
@@ -194,6 +190,8 @@ export class Mesh {
     public localId: string,
     public rtcConfig: RTCConfiguration,
   ) {
+    super();
+
     this.signalingChannel = new SignalingChannel(this.localId);
     this.registerSignalHandlers();
 
@@ -250,12 +248,8 @@ export class Mesh {
     if (this.connections.has(peerId)) return;
 
     // Create and register a new peer connection.
-    const conn = new PeerConnection(
-      new RTCPeerConnection(this.rtcConfig),
-      this.localId,
-      peerId,
-      this.signalingChannel,
-    );
+    const rtcConnection = new RTCPeerConnection(this.rtcConfig);
+    const conn = new PeerConnection(this, rtcConnection, this.localId, peerId);
     this.connections.set(peerId, conn);
 
     // Initiate negotiation only when impolite, as initiating both side would only waste resources.

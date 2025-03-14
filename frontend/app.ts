@@ -9,18 +9,6 @@ declare global {
   }
 }
 
-interface SystemAudioField {
-  systemAudio: "include" | "exclude";
-}
-
-const displayMediaOptions: DisplayMediaStreamOptions & SystemAudioField = {
-  video: {
-    displaySurface: ["browser", "window"],
-  },
-  audio: true,
-  systemAudio: "include",
-};
-
 export class App {
   public mesh: Mesh;
 
@@ -34,16 +22,20 @@ export class App {
 
     this.streams = new Set();
     this.streamList = new StreamListUI();
+
+    this.mesh.addEventListener("track", (ev) => {
+      const { track } = ev.detail;
+
+      const stream = new MediaStream();
+      stream.addTrack(track);
+      this.addStream(stream);
+    });
   }
 
-  public async addStream(): Promise<void> {
-    // TODO: handle error (e.g. rejection)
-    const captureStream =
-      await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
-
-    this.streams.add(captureStream);
-    captureStream.addEventListener("inactive", () => {
-      this.streams.delete(captureStream);
+  public addStream(stream: MediaStream): void {
+    this.streams.add(stream);
+    stream.addEventListener("inactive", () => {
+      this.streams.delete(stream);
     });
 
     this.streamList.render(this.streams);
