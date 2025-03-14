@@ -1,12 +1,20 @@
 import WebSocket from "ws";
 import { ICustomWebSocket } from "../shared/signaling";
+import { CustomEventTarget } from "../shared/CustomEventTarget";
+
+interface NodeWebSocketAdapterEventMap {
+  open: undefined;
+  error: Error;
+  close: { code: number; reason: string };
+  message: WebSocket.Data;
+}
 
 /** EventTarget adapter for `ws.WebSocket`
  *
  * This class adapts EventEmitter-based `ws.WebSocket` to EventTarget-based DOM `WebSocket`.
  */
 export class NodeWebSocketAdapter
-  extends EventTarget
+  extends CustomEventTarget<NodeWebSocketAdapterEventMap>
   implements ICustomWebSocket
 {
   constructor(public ws: WebSocket) {
