@@ -264,4 +264,14 @@ export class Mesh extends CustomEventTarget<MeshEventMap> {
       this.connections.delete(peerId);
     }
   }
+
+  public throwStream(peerId: string, stream: MediaStream): void {
+    const conn = this.connections.get(peerId);
+    if (!conn) throw new Error(`peer not found: ${peerId}`);
+
+    for (const videoTrack of stream.getVideoTracks())
+      conn.rtcConnection.addTrack(videoTrack, stream);
+    for (const audioTrack of stream.getAudioTracks())
+      conn.rtcConnection.addTrack(audioTrack, stream);
+  }
 }

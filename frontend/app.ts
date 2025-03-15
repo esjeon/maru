@@ -1,6 +1,5 @@
-import { Mesh } from "./Mesh";
-import { SignalingChannel } from "./SignalingChannel";
 import { generateRandomID } from "../shared/utils";
+import { Mesh } from "./Mesh";
 import { StreamListUI } from "./ui";
 
 declare global {
@@ -21,7 +20,7 @@ export class App {
     });
 
     this.streams = new Set();
-    this.streamList = new StreamListUI();
+    this.streamList = new StreamListUI(this);
 
     this.mesh.addEventListener("track", (ev) => {
       const { track } = ev.detail;
@@ -34,23 +33,11 @@ export class App {
 
   public addStream(stream: MediaStream): void {
     this.streams.add(stream);
-    this.streamList.render(this.streams);
+    this.streamList.render();
 
     stream.addEventListener("inactive", () => {
       this.streams.delete(stream);
-      this.streamList.render(this.streams);
-    });
-  }
-
-  public async throwStreamDemo(): Promise<void> {
-    const mediaStream = this.streams.values().next().value!;
-    const videoTrack = mediaStream.getVideoTracks()[0];
-    const audioTrack = mediaStream.getAudioTracks()[0];
-    console.log(mediaStream.getAudioTracks());
-
-    this.mesh.connections.forEach((conn, peerId) => {
-      conn.rtcConnection.addTrack(videoTrack, mediaStream);
-      if (audioTrack) conn.rtcConnection.addTrack(audioTrack, mediaStream);
+      this.streamList.render();
     });
   }
 }

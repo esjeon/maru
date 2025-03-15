@@ -23,8 +23,4 @@ window.addEventListener("load", () => {
       await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
     app.addStream(captureStream);
   });
-
-  document
-    .querySelector("#videos-throw")!
-    .addEventListener("click", () => app.throwStreamDemo());
 });
